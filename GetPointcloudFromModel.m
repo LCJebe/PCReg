@@ -1,11 +1,11 @@
-%clear all
-%close all
+clear all
+close all
 
 % 0: no crop
 % 1: manual box select
 % 2: predefined settings for good crop
 % 3: predefined settings for bad "random" crop
-CROP = 3;
+CROP = 1;
 
 %% Read DICOM images
 % 512 x 512
@@ -89,18 +89,39 @@ Vc = VV(ymin:ymax, xmin:xmax, zmin:zmax);
 
 thresh = 0.3;
 
+
 %Vb: binarized Volume
 Vb = zeros(size(Vc));
 for iz = 1:dc
     % binarize slice with given threshold value
     slice = squeeze(Vc(:, :, iz));
     slice_bin = imbinarize(slice, thresh);
+
     Vb(:, :, iz) = slice_bin;
 end
 
 % show binary volume
-%figure();
-%LFDispMousePan(permute(Vb, [3, 1, 2]));
+figure();
+LFDispMousePan(permute(Vb, [3, 1, 2]));
+
+
+%% if desired, fill holes to reduce surface area!!
+FILL_HOLES = true;
+min_pixels = 1e6; % ideally, there is only one single air region!
+
+if FILL_HOLES
+    r = 5;   
+    % expand volume with zeros to not remove holes that appear at edges
+    Vb_expanded = padarray(Vb,[r, r, r],0,'both');
+    % remove small regions with 6-connectivity for speed
+    Vb_expanded = ~bwareaopen(~Vb_expanded, min_pixels, 6);
+    Vb = double(Vb_expanded(r+1:end-r, r+1:end-r, r+1:end-r));
+end
+
+% show binary volume after hole removal
+figure();
+LFDispMousePan(permute(Vb, [3, 1, 2]));
+
 
 %% Edge detection
 

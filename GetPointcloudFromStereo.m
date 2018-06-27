@@ -278,14 +278,16 @@ elseif strcmp(METHOD, 'DENSE')
     ptCloud_down = pointCloud([xd', yd', zd'], 'Color', colors);
 end
 %% Visualization
-figure();
-pcshow(ptCloud_down, 'MarkerSize', 60);
-xlabel('X');
-ylabel('Y');
-zlabel('Z');
+if strcmp(METHOD, 'DENSE')
+    figure();
+    pcshow(ptCloud_down, 'MarkerSize', 60);
+    xlabel('X');
+    ylabel('Y');
+    zlabel('Z');
+end
 
-%figure();
-%pcshow(ptCloud, 'MarkerSize', 12);
+figure();
+pcshow(ptCloud, 'MarkerSize', 12);
 xlabel('X');
 ylabel('Y');
 zlabel('Z');

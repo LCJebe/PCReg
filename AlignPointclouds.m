@@ -8,11 +8,11 @@ pcModel = pcread(strcat(path, 'c_ModelCrop.pcd'));
 %% ALIGN: change coordinate system of surface
 
 % specify rotation (in DEG) and translation (in mm)
-x_off = 11; % 11
-y_off = 6; % 6
-z_off = 8; % 8
-Rx = 63; % 63
-Ry = 190; % 190
+x_off = 10.7; % 11.7
+y_off = 6.1; % 6.1
+z_off = 8.3; % 8.3
+Rx = 70; % 70
+Ry = 188; % 188
 Rz = 0; % 0
 
 % first: center around the origin
