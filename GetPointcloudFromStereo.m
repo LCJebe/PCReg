@@ -81,8 +81,8 @@ l_rect_crop = l_rect(:, 1:end-crop, :);
 r_rect_crop = r_rect(:, crop+1:end, :);
 
 %figure('name', "Cropped");
-%a = permute(cat(4, r_rect_crop, l_rect_crop), [4, 1, 2, 3]);
-%LFDispMousePan(a);
+a = permute(cat(4, r_rect_crop, l_rect_crop), [4, 1, 2, 3]);
+LFDispMousePan(a);
 
 %% get sparse disparity map using feature correspondences
 if strcmp(METHOD,'SPARSE')

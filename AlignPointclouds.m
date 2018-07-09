@@ -1,9 +1,9 @@
 clear all
 %% READ DATA: model and surface point clouds from saved file
 path = 'Data/PointClouds/';
-surface_name = 'c_Surface_down.pcd';
+surface_name = 'Surface_dense.pcd';
 pcSurface = pcread(strcat(path, surface_name));
-pcModel = pcread(strcat(path, 'c_ModelCrop.pcd'));
+pcModel = pcread(strcat(path, 'GoodCrop.pcd'));
 
 %% ALIGN: change coordinate system of surface
 

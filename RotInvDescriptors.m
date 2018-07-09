@@ -3,11 +3,9 @@ close all
 
 %% READ in aligned surface and model crop
 path = 'Data/PointClouds/';
-pcSurface = pcread(strcat(path, 'c_Surface_down_aligned.pcd'));
-pcModel = pcread(strcat(path, 'c_ModelCrop.pcd'));
-pcRand = pcread(strcat(path, 'c_RandCrop.pcd'));
-
-
+pcSurface = pcread(strcat(path, 'Surface_DS_aligned.pcd'));
+pcModel = pcread(strcat(path, 'GoodCrop.pcd'));
+pcRand = pcread(strcat(path, 'RandCrop.pcd'));
 
 %% define parameters
 % voxel size (cubic voxels) in [mm]
