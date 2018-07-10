@@ -1,11 +1,18 @@
 clear all
 close all
 
-%% define method for sampling points
-% 'GRID' for regular grid
+%% TODOs
+% - reject spherical features (DONE: PCA variances) 
+% - use alignment strategy  (DONE: PCA w/ sign disambiguition)
+% - switch to spherical harmonics
+
+ALIGN_POINTS = true;
+
+%% define method for sampling points (keypoint detection)
+% 'UNIFORM' for regular grid (uniform sampling)
 % 'RANDOM' for random points in point cloud
 % 'ALL' for all points in point cloud
-method = 'GRID';
+method = 'UNIFORM';
 
 %% READ in aligned surface and model crop
 path = 'Data/PointClouds/';
@@ -14,7 +21,7 @@ pcModel = pcread(strcat(path, 'GoodCrop.pcd'));
 pcRand = pcread(strcat(path, 'RandCrop.pcd'));
 
 %% define locations of spheres for local descriptors
-if strcmp(method, 'GRID')
+if strcmp(method, 'UNIFORM')
     XLimits = [min(pcSurface.XLimits(1), pcModel.XLimits(1)), ...
                 max(pcSurface.XLimits(2), pcModel.XLimits(2))];
     YLimits = [min(pcSurface.YLimits(1), pcModel.YLimits(1)), ...
@@ -23,7 +30,7 @@ if strcmp(method, 'GRID')
                 max(pcSurface.ZLimits(2), pcModel.ZLimits(2))];
 
     % create meshgrid of points
-    d = 0.5;
+    d = 0.4; % spacing of spheres along each axis
     x = XLimits(1):d:XLimits(2);
     y = YLimits(1):d:YLimits(2);
     z = ZLimits(1):d:ZLimits(2);
@@ -35,70 +42,92 @@ end
 %% get local descriptors for each model
 
 % specify minimum number of points that has to be in sphere
-min_pts = 30;
+min_pts = 50;
 % specify radius of sphere
-R = 1;
+R = 1.5;
+% specify the reject threshold for eccentricity (covar-eigenvalues), value
+% must be >= 1 
+thVar = [1.5, 1.5];
+
+% specify number of nearest neighbors (KNN) to use for local reference
+% frame. Number should be <= min_points, or write 'all'
+% if k is 'all', then points need not be sorted - faster. 
+k = 'all';
 
 pts = pcModel.Location;
-descModel = getLocalDescriptors(pts, sample_pts, min_pts, R);
+[featModel, descModel] = getMomentDescriptors(pts, sample_pts, min_pts, R, thVar, ALIGN_POINTS, k);
 
 pts = pcRand.Location;
-descRand = getLocalDescriptors(pts, sample_pts, min_pts, R);
+[featRand, descRand] = getMomentDescriptors(pts, sample_pts, min_pts, R, thVar, ALIGN_POINTS, k);
 
 pts = pcSurface.Location;
-descSurface = getLocalDescriptors(pts, sample_pts, min_pts, R);
+[featSurface, descSurface] = getMomentDescriptors(pts, sample_pts, min_pts, R, thVar, ALIGN_POINTS, k);
 
-%% function to calculate a descriptor for each point
-function desc = getLocalDescriptors(pts, sample_pts, min_pts, R)
-    % pts: points in pointcloud
-    % sample_pts: points to calculate descriptors at
-    % min_points: minimum number of points in sphere
-    % R: Radius of sphere
+%% Apply weights to descriptors
+% first step: weight descriptors
+weights.M1 = 0.2; % 0.2
+weights.M2 = 1; % 1
+weights.M3 = 1.8; % 1.8
 
-    desc = [];
-    tic
-    for i = 1:size(sample_pts, 1)
-        c = sample_pts(i, :);
-        pts_local = getLocalPoints(pts, R, c, min_pts);
+descSurfaceW = applyWeight(descSurface, weights);
+descModelW = applyWeight(descModel, weights);
+descRandW = applyWeight(descRand, weights);
+%% Match features between Surface and Model / Random Crop
 
-        if ~ isempty(pts_local) 
-            num_points = size(pts_local, 1);
-
-            % get first order moments [X, Y Z]
-            M1_L2 = mean(pts_local, 1);
-            M1_L1 = median(pts_local, 1);
-
-            % get second order moments [XX, YY, ZZ, XY, XZ, YZ];
-            M2 = (pts_local' * pts_local) / num_points;
-            M2_L2 = [M2(1,1), M2(2,2), M2(3,3), M2(1,2), M2(1,3), M2(2, 3)];
-
-            % get third order moments
-            pts2 = pts_local.^2;
-            % [XXX, YYY, ZZZ, XXY, XXZ, YYX, YYZ, ZZX, ZZY]
-            M3 = (pts_local'.^2 * pts_local) / num_points;
-            % [XYZ]
-            mom3XYZ = mean(pts_local(:,1).*pts_local(:,2).*pts_local(:,3), 1);
-            M3_L2 = [reshape(M3, 1, []), mom3XYZ];
+% Define matching algorithm parameters
+par.Method = 'Exhaustive'; % 'Exhaustive' (default) or 'Approximate'
+par.MatchThreshold =  0.3; % 1.0 (default) Percent Value (0 - 100) for distance-reject
+par.MaxRatio = 0.95; % 0.6 (default) nearest neighbor ambiguity rejection
+par.Metric =  'SSD'; % SSD (default) for L2, SAD for L1
+par.Unique = true; % true: 1-to-1 mapping only, else set false (default)
 
 
-            % descriptor structure is 
-            % [X, Y, Z, X, Y, Z, XX, YY, ZZ, XY, XZ, YZ, XXX, YYY, ZZZ, XXY,
-            % XXZ, YYX, YYZ, ZZX, ZZY, XYZ], 
-            % where the first X, Y, Z are in L2 norm and the second X, Y, Z are
-            % in L1 norm
-            new_entry = [M1_L2, M1_L1, M2_L2, M3_L2];
 
-            desc = [desc; new_entry];
-        end
-    end
-    toc
-end
+matchesModel = matchFeatures(descSurfaceW, descModelW, ...
+        'Method', par.Method, ...
+        'MatchThreshold', par.MatchThreshold, ... 
+        'MaxRatio', par.MaxRatio, ... 
+        'Metric', par.Metric, ...
+        'Unique', par.Unique); 
+
+matchesRand = matchFeatures(descSurfaceW, descRandW, ...
+        'Method', par.Method, ...
+        'MatchThreshold', par.MatchThreshold, ... 
+        'MaxRatio', par.MaxRatio, ... 
+        'Metric', par.Metric, ...
+        'Unique', par.Unique); 
+    
+%% Get distance between matching points
+% this makes sense, because the pointclouds are already aligned. The
+% distance between matching INLIERS of the model will thus be small and a
+% simple distance threshold can be used to determine whether a match is an
+% inlier 
+
+% maxDist specifies matching distance to count inliers 
+maxDist = 1; 
+
+% matches of surface and model
+loc1M = featModel(matchesModel(:, 2), :);
+loc1S = featSurface(matchesModel(:, 1), :);
+d1 = vecnorm(loc1M - loc1S, 2, 2);
+inliers1 = length(find(d1 < maxDist));
+
+% precision
+inliersPrecision = inliers1/size(d1, 1)*100;
+
+% matches of surface and random crop
+loc2M = featRand(matchesRand(:, 2), :);
+loc2S = featSurface(matchesRand(:, 1), :);
+d2 = vecnorm(loc2M - loc2S, 2, 2);
+inliers2 = length(find(d2 <= maxDist));
+
+                   
 
 %% Function: get points within sphere
 % returns only the points from pts that are within a certain radius R
 % of center point c if there are at least min_points in it
-% RETURNS: Points RELATIVE to c. 
-function pts_sphere = getLocalPoints(pts, R, c, min_points)
+% RETURNS: Points RELATIVE to c, optinally sorted by distance. 
+function pts_sphere = getLocalPoints(pts, R, c, min_points, SORT_POINTS)
 
     % first: quickly crop cube around the center
     xLim = c(1) + [-R, R];
@@ -118,10 +147,25 @@ function pts_sphere = getLocalPoints(pts, R, c, min_points)
         pts_rel = pts_cube - c;
         dists = vecnorm(pts_rel, 2, 2);
         mask = dists < R;
+        dists_remaining = dists(find(mask));
         mask = cat(2, mask, mask, mask);
         pts_sphere = reshape(pts_rel(mask), [], 3);    
+        
+        % reject if not enough points found
+        if size(pts_sphere, 1) < min_points
+            pts_sphere = [];
+        elseif SORT_POINTS % order points by distance
+            [~, I] = sort(dists_remaining);
+            pts_sphere = pts_sphere(I, :);
+        end
     end
-    if size(pts_sphere, 1) < min_points
-        pts_sphere = [];
-    end
+    
+end
+
+%% helpter function that applies weight to descriptor
+function descW = applyWeight(desc, weights)
+    descW = desc;
+    descW(:, 1:6) = desc(:, 1:6)*weights.M1;
+    descW(:, 7:12) = desc(:, 7:12)*weights.M2;
+    descW(:, 13:22) = desc(:, 13:22)*weights.M3;
 end

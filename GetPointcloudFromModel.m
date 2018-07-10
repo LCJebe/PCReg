@@ -179,6 +179,10 @@ if enable_3D_edges
     end
     % Density colored edges
     Ve3D_6conn_col = uint8(double(Ve3D_6conn).*Vcol*255);
+    
+    % show edge Volume
+    figure('name', 'Density Colored Surface Edges');
+    LFDispMousePan(permute(Ve3D_6conn_col, [3, 1, 2, 4]), 2);
 else
 %% Edge detection 2D (boundaries of binary image)
 
