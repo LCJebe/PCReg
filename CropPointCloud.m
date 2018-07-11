@@ -2,7 +2,7 @@ clear all
 close all
 
 %% read pointcloud
-path = 'Data/PointClouds/c_FullModel_filled.pcd';
+path = 'Data/PointClouds/Model.pcd';
 pcModel = pcread(path);
 
 % optional: show pointcloud

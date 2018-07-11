@@ -16,19 +16,14 @@ function [feat, desc] = getMomentDescriptors(pts, sample_pts, min_pts, R, thVar,
         
     % preallocate space for features and descriptors, even though we don't
     % know their length
-    desc = nan(size(sample_pts, 1), 22);
+    desc = nan(size(sample_pts, 1), 31);
     feat = nan(size(sample_pts, 1), 3);
     tic
-    for i = 1:size(sample_pts, 1)
+    parfor i = 1:size(sample_pts, 1)
         c = sample_pts(i, :);
         
-        % return local points (sorted by dist if using KNN)
-        if strcmp(K, 'all')
-            SORT = false;
-        else
-            SORT = true;
-        end
-        pts_local = getLocalPoints(pts, R, c, min_pts, SORT);
+        % return local points
+        [pts_local, dists] = getLocalPoints(pts, R, c, min_pts);
 
         if ~ isempty(pts_local) 
             num_points = size(pts_local, 1);
@@ -39,6 +34,9 @@ function [feat, desc] = getMomentDescriptors(pts, sample_pts, min_pts, R, thVar,
                 k = num_points;
             else
                 k = K;
+                % sort points by distance to center for KNN
+                [~, I] = sort(dists);
+                pts_local = pts_local(I, :);
             end
             pts_k = pts_local(1:k, :);
             if ~(sum(thVar == 1) == 2) || ALIGN_POINTS
@@ -66,11 +64,11 @@ function [feat, desc] = getMomentDescriptors(pts, sample_pts, min_pts, R, thVar,
                 y_sign = coeff(2, :) / cross(coeff(1, :), coeff(3, :)) * x_sign * z_sign;
 
                 % apply signs to transform matrix (pca coefficients)
-                %coeff_unambig = coeff .* [x_sign, y_sign, z_sign];
+                coeff_unambig = coeff .* [x_sign, y_sign, z_sign];
 
                 % transform all points into the new coordinate system
-                %pts_local = pts_local*coeff_unambig';
-                pts_local = pts_local*coeff';
+                pts_local = pts_local*coeff_unambig';
+                %pts_local = pts_local*coeff';
             end
             
             % ---- calculate the descriptor
@@ -84,12 +82,17 @@ function [feat, desc] = getMomentDescriptors(pts, sample_pts, min_pts, R, thVar,
             
             % get third order moments
             pts2 = pts_local.^2;
-            % [XXX, YYY, ZZZ, XXY, XXZ, YYX, YYZ, ZZX, ZZY]
-            M3 = (pts_local'.^2 * pts_local) / num_points;
+            % [XXX, YYY, ZZZ, XXY, XXZ, YYX, YYZ, ZZX, ZZY] (order differs)
+            M3 = (pts2' * pts_local) / num_points;
             % [XYZ]
             mom3XYZ = mean(pts_local(:,1).*pts_local(:,2).*pts_local(:,3), 1);
             M3_L2 = [reshape(M3, 1, []), mom3XYZ];
-
+            
+            % get pure and semi-pure fourth order moments
+            M4 = (pts2'*pts2) / num_points;
+            % [XXXX, YYYY, ZZZZ, XXYY, XXZZ, YYXX, YYZZ, ZZXX, ZZYY] (order
+            % differs)
+            M4_L2 = reshape(M4, 1, []);
 
             % descriptor structure is 
             % [X, Y, Z, X, Y, Z, XX, YY, ZZ, XY, XZ, YZ, XXX, YYY, ZZZ, XXY,
@@ -99,7 +102,8 @@ function [feat, desc] = getMomentDescriptors(pts, sample_pts, min_pts, R, thVar,
             new_entry = [M1_L2, ...
                          M1_L1, ...
                          M2_L2, ...
-                         M3_L2,];
+                         M3_L2, ...
+                         M4_L2];
 
             desc(i, :) = new_entry;
             feat(i, :) = c;

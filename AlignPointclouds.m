@@ -1,7 +1,7 @@
 clear all
 %% READ DATA: model and surface point clouds from saved file
 path = 'Data/PointClouds/';
-surface_name = 'Surface_dense.pcd';
+surface_name = 'Surface_DS4.pcd';
 pcSurface = pcread(strcat(path, surface_name));
 pcModel = pcread(strcat(path, 'GoodCrop.pcd'));
 

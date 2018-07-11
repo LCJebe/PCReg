@@ -4,15 +4,12 @@ close all
 %% TODOs
 % - reject spherical features (DONE: PCA variances) 
 % - use alignment strategy  (DONE: PCA w/ sign disambiguition)
-% - switch to spherical harmonics
-
-ALIGN_POINTS = true;
 
 %% define method for sampling points (keypoint detection)
 % 'UNIFORM' for regular grid (uniform sampling)
 % 'RANDOM' for random points in point cloud
 % 'ALL' for all points in point cloud
-method = 'UNIFORM';
+sampling_method = 'UNIFORM';
 
 %% READ in aligned surface and model crop
 path = 'Data/PointClouds/';
@@ -21,7 +18,7 @@ pcModel = pcread(strcat(path, 'GoodCrop.pcd'));
 pcRand = pcread(strcat(path, 'RandCrop.pcd'));
 
 %% define locations of spheres for local descriptors
-if strcmp(method, 'UNIFORM')
+if strcmp(sampling_method, 'UNIFORM')
     XLimits = [min(pcSurface.XLimits(1), pcModel.XLimits(1)), ...
                 max(pcSurface.XLimits(2), pcModel.XLimits(2))];
     YLimits = [min(pcSurface.YLimits(1), pcModel.YLimits(1)), ...
@@ -30,7 +27,7 @@ if strcmp(method, 'UNIFORM')
                 max(pcSurface.ZLimits(2), pcModel.ZLimits(2))];
 
     % create meshgrid of points
-    d = 0.4; % spacing of spheres along each axis
+    d = 0.3; % 0.4, spacing of spheres along each axis
     x = XLimits(1):d:XLimits(2);
     y = YLimits(1):d:YLimits(2);
     z = ZLimits(1):d:ZLimits(2);
@@ -41,10 +38,16 @@ end
 
 %% get local descriptors for each model
 
+% define whether to use 'Moment'- or 'Rotational' Descriptor
+descriptor = 'Moment';
+
+% if descriptor is 'Moment' optionally align to a local reference frame
+ALIGN_POINTS = true;
+
 % specify minimum number of points that has to be in sphere
-min_pts = 50;
+min_pts = 50; % 50
 % specify radius of sphere
-R = 1.5;
+R = 1.5; % 1.5
 % specify the reject threshold for eccentricity (covar-eigenvalues), value
 % must be >= 1 
 thVar = [1.5, 1.5];
@@ -54,34 +57,50 @@ thVar = [1.5, 1.5];
 % if k is 'all', then points need not be sorted - faster. 
 k = 'all';
 
-pts = pcModel.Location;
-[featModel, descModel] = getMomentDescriptors(pts, sample_pts, min_pts, R, thVar, ALIGN_POINTS, k);
+% get points from pointclouds
+ptsModel = pcModel.Location;
+ptsRand = pcRand.Location;
+ptsSurface = pcSurface.Location;
 
-pts = pcRand.Location;
-[featRand, descRand] = getMomentDescriptors(pts, sample_pts, min_pts, R, thVar, ALIGN_POINTS, k);
+% calculate the descriptos with the specified method
+if strcmp(descriptor, 'Moment')    
+    [featModel, descModel] = getMomentDescriptors(ptsModel, sample_pts, min_pts, R, thVar, ALIGN_POINTS, k);
+    [featRand, descRand] = getMomentDescriptors(ptsRand, sample_pts, min_pts, R, thVar, ALIGN_POINTS, k);
+    [featSurface, descSurface] = getMomentDescriptors(ptsSurface, sample_pts, min_pts, R, thVar, ALIGN_POINTS, k);        
+elseif strcmp(descriptor, 'Rotational')    
+    [featModel, descModel] = getRotationalDescriptors(ptsModel, sample_pts, min_pts, R);
+    [featRand, descRand] = getRotationalDescriptors(ptsRand, sample_pts, min_pts, R);
+    [featSurface, descSurface] = getRotationalDescriptors(ptsSurface, sample_pts, min_pts, R);
+else
+    error('Descriptor method must be either Moment or Rotational');
+end
 
-pts = pcSurface.Location;
-[featSurface, descSurface] = getMomentDescriptors(pts, sample_pts, min_pts, R, thVar, ALIGN_POINTS, k);
-
+    
 %% Apply weights to descriptors
-% first step: weight descriptors
-weights.M1 = 0.2; % 0.2
-weights.M2 = 1; % 1
-weights.M3 = 1.8; % 1.8
+if strcmp(descriptor, 'Moment')    
+    weights.M1 = 0; % 0.2
+    weights.M2 = 0.3; % 1
+    weights.M3 = 0.8; % 1.8
+    weights.M4 = 0.5; % 0.5
 
-descSurfaceW = applyWeight(descSurface, weights);
-descModelW = applyWeight(descModel, weights);
-descRandW = applyWeight(descRand, weights);
+    descSurfaceW = applyMomentWeight(descSurface, weights);
+    descModelW = applyMomentWeight(descModel, weights);
+    descRandW = applyMomentWeight(descRand, weights);
+else
+    descSurfaceW = descSurface;
+    descModelW = descModel;
+    descRandW = descRand;
+end
+    
+
 %% Match features between Surface and Model / Random Crop
 
 % Define matching algorithm parameters
 par.Method = 'Exhaustive'; % 'Exhaustive' (default) or 'Approximate'
-par.MatchThreshold =  0.3; % 1.0 (default) Percent Value (0 - 100) for distance-reject
-par.MaxRatio = 0.95; % 0.6 (default) nearest neighbor ambiguity rejection
+par.MatchThreshold =  1; % 1.0 (default) Percent Value (0 - 100) for distance-reject
+par.MaxRatio = 0.8; % 0.6 (default) nearest neighbor ambiguity rejection
 par.Metric =  'SSD'; % SSD (default) for L2, SAD for L1
 par.Unique = true; % true: 1-to-1 mapping only, else set false (default)
-
-
 
 matchesModel = matchFeatures(descSurfaceW, descModelW, ...
         'Method', par.Method, ...
@@ -121,51 +140,11 @@ loc2S = featSurface(matchesRand(:, 1), :);
 d2 = vecnorm(loc2M - loc2S, 2, 2);
 inliers2 = length(find(d2 <= maxDist));
 
-                   
-
-%% Function: get points within sphere
-% returns only the points from pts that are within a certain radius R
-% of center point c if there are at least min_points in it
-% RETURNS: Points RELATIVE to c, optinally sorted by distance. 
-function pts_sphere = getLocalPoints(pts, R, c, min_points, SORT_POINTS)
-
-    % first: quickly crop cube around the center
-    xLim = c(1) + [-R, R];
-    yLim = c(2) + [-R, R];
-    zLim = c(3) + [-R, R];
-    mask = pts(:, 1) > xLim(1) & pts(:, 1) < xLim(2) ...
-         & pts(:, 2) > yLim(1) & pts(:, 2) < yLim(2) ...
-         & pts(:, 3) > zLim(1) & pts(:, 3) < zLim(2);
-    mask = cat(2, mask, mask, mask);
-    pts_cube = reshape(pts(mask), [], 3);    
-    
-    if size(pts_cube, 1) < min_points
-        pts_sphere = [];
-    else
-        % then: get distances for each remaining point and only keep the points
-        % that are within the radius
-        pts_rel = pts_cube - c;
-        dists = vecnorm(pts_rel, 2, 2);
-        mask = dists < R;
-        dists_remaining = dists(find(mask));
-        mask = cat(2, mask, mask, mask);
-        pts_sphere = reshape(pts_rel(mask), [], 3);    
-        
-        % reject if not enough points found
-        if size(pts_sphere, 1) < min_points
-            pts_sphere = [];
-        elseif SORT_POINTS % order points by distance
-            [~, I] = sort(dists_remaining);
-            pts_sphere = pts_sphere(I, :);
-        end
-    end
-    
-end
-
-%% helpter function that applies weight to descriptor
-function descW = applyWeight(desc, weights)
+%% helper function that applies weight to descriptor
+function descW = applyMomentWeight(desc, weights)
     descW = desc;
     descW(:, 1:6) = desc(:, 1:6)*weights.M1;
     descW(:, 7:12) = desc(:, 7:12)*weights.M2;
     descW(:, 13:22) = desc(:, 13:22)*weights.M3;
+    descW(:, 23:31) = desc(:, 23:31)*weights.M4;
 end
