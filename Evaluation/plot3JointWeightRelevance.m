@@ -1,4 +1,4 @@
-%% Load variables into workspace first by calling GetSphericalDescriptors!s
+%% Load variables into workspace first by calling GetSphericalDescriptors!
 
 %% Sample combintions of m2, m3, m4 on 1/8 sphere surface
 
@@ -80,16 +80,16 @@ close all;
 
 figure()
 surf(theta_grid, phi_grid, precision, 'FaceColor', 'interp')
-title("Precision")
-xlabel("Phi")
-ylabel("Theta")
+title("Precision (%)")
+xlabel("Theta")
+ylabel("Phi")
 colorbar
 
 figure()
 surf(theta_grid, phi_grid, goodInliers, 'FaceColor', 'interp')
-title("Good Inliers")
-xlabel("Phi")
-ylabel("Theta")
+title("# of Good Inliers")
+xlabel("Theta")
+ylabel("Phi")
 colorbar
 
 %% helper function that applies weight to descriptor
