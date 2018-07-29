@@ -1,5 +1,5 @@
 %% function to calculate a descriptor for each point
-function [feat, desc] = getMomentDescriptors(pts, sample_pts, min_pts, R, thVar, ALIGN_POINTS, K)
+function [feat, desc] = getMomentDescriptors(pts, sample_pts, min_pts, R, thVar, ALIGN_POINTS, CENTER, K)
     % pts: points in pointcloud
     % sample_pts: points to calculate descriptors at
     % min_points: minimum number of points in sphere
@@ -40,7 +40,7 @@ function [feat, desc] = getMomentDescriptors(pts, sample_pts, min_pts, R, thVar,
             end
             pts_k = pts_local(1:k, :);
             if ~(sum(thVar == 1) == 2) || ALIGN_POINTS
-                [coeff, ~, variances] = pca(pts_k); 
+                [coeff, ~, variances] = pca(pts_k, 'Algorithm', 'eig'); 
                 % continue if constraints are not met
                 if (variances(1) / variances(2) < thVar(1)) || ...
                         (variances(2) / variances(3) < thVar(2))
@@ -75,6 +75,11 @@ function [feat, desc] = getMomentDescriptors(pts, sample_pts, min_pts, R, thVar,
             % get first order moments [X, Y Z]
             M1_L2 = mean(pts_local, 1);
             M1_L1 = median(pts_local, 1);
+            
+            % center to median point coordinates
+            if CENTER
+                pts_local = pts_local - M1_L1;
+            end
 
             % get second order moments [XX, YY, ZZ, XY, XZ, YZ];
             M2 = (pts_local' * pts_local) / num_points;

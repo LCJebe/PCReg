@@ -5,8 +5,11 @@ close all
 % 1: manual box select
 % 2: predefined settings for good crop
 % 3: predefined settings for bad "random" crop
-% 4: no crop
-CROP = 1;
+% 4: predefined settings for 2nd bad "random" crop
+% 5: predefined settings for 3rd bad "random" crop
+% 6: predefined settings for half-good, half-bad crop
+% 7: no crop
+CROP = 0;
 
 enable_3D_edges = true;
 
@@ -84,6 +87,27 @@ elseif CROP == 3 % incorrect area sampeled
     xmax = 440;
     zmin = 60;
     zmax = 100;
+elseif CROP == 4 % incorrect area sampeled
+    ymin = 460;
+    ymax = 530;
+    xmin = 440;
+    xmax = 540;
+    zmin = 60;
+    zmax = 100;
+elseif CROP == 5 % incorrect area sampeled
+    ymin = 530;
+    ymax = 600;
+    xmin = 440;
+    xmax = 540;
+    zmin = 20;
+    zmax = 60;
+elseif CROP == 6 % challenge: half-good, half-bad area sampeled
+    ymin = 530;
+    ymax = 600;
+    xmin = 490;
+    xmax = 590;
+    zmin = 60;
+    zmax = 100;
 else
     xmin = 1;
     xmax = n;
@@ -99,7 +123,7 @@ Vc = VV(ymin:ymax, xmin:xmax, zmin:zmax);
 
 %show cropped volume
 figure('name', 'Cropped Volume');
-LFDispMousePan(permute(Vc, [3, 1, 2]));
+LFDispMousePan(permute(Vc, [3, 1, 2]), 2);
 
 
 %% Binarize Image and get rid of unneccesary parts
@@ -119,7 +143,7 @@ end
 
 % show binary volume
 figure('name', 'Binary Volume');
-LFDispMousePan(permute(Vb, [3, 1, 2]));
+LFDispMousePan(permute(Vb, [3, 1, 2]), 2);
 
 
 %% if desired, fill holes to reduce surface area
@@ -137,7 +161,7 @@ end
 
 % show binary volume after hole removal
 figure('name', 'Binary Volume, holes filled');
-LFDispMousePan(permute(Vb, [3, 1, 2]));
+LFDispMousePan(permute(Vb, [3, 1, 2]), 2);
 
 %% Edge detection 3D
 
