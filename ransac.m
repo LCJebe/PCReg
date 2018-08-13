@@ -33,7 +33,7 @@ function [T, inlierIdx] = ransac( pts1,pts2,ransacCoef,funcFindTransf,funcDist )
     inlrNum = zeros(1,iterNum);
     TForms = cell(1,iterNum);
 
-    parfor p = 1:iterNum
+    for p = 1:iterNum %PARFOR
         % 1. fit using  random points
         randomInts = randperm(ptNum);
         sampleIdx = randomInts(1:minPtNum);
@@ -55,6 +55,8 @@ function [T, inlierIdx] = ransac( pts1,pts2,ransacCoef,funcFindTransf,funcDist )
     T = TForms{idx};
     try
         dist = funcDist(T,pts1,pts2);
+        inlier_refined = find(dist < thDist);
+        maxInliers_refined = length(inlier_refined);
     catch
         error('RANSAC could not find an appropriate transformation');
     end
@@ -62,6 +64,6 @@ function [T, inlierIdx] = ransac( pts1,pts2,ransacCoef,funcFindTransf,funcDist )
     
     numSuccess = sum(inlrNum >= thInlr);
     
-    fprintf('RANSAC succeeded %d times with a maximum of %d Inliers\n', numSuccess, maxInliers);
+    fprintf('RANSAC succeeded %d times with a maximum of %d Inliers\n', numSuccess, maxInliers_refined);
 	
 end

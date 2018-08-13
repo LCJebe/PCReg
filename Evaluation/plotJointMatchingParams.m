@@ -15,9 +15,11 @@ goodInliers = zeros(length(maxRatio), length(thMatch));
 badInliers = zeros(length(maxRatio), length(thMatch));
 
 %% %% Match features between Surface and Model / Random Crop
+length(maxRatio)
+length(thMatch)
 tic
 for i = 1:length(maxRatio)
-    for j = 1:length(thMatch)
+    parfor j = 1:length(thMatch)
 
         matchesModel = matchFeatures(descSurfaceW, descModelW, ...
                 'Method', 'Approximate', ...
@@ -26,12 +28,12 @@ for i = 1:length(maxRatio)
                 'Metric', 'SSD', ...
                 'Unique', true); 
 
-        matchesRand = matchFeatures(descSurfaceW, descRandW, ...
-                'Method', 'Approximate', ...
-                'MatchThreshold', thMatch(j), ... 
-                'MaxRatio', maxRatio(i), ... 
-                'Metric', 'SSD', ...
-                'Unique', true); 
+        %matchesRand = matchFeatures(descSurfaceW, descRandW, ...
+         %       'Method', 'Approximate', ...
+         %       'MatchThreshold', thMatch(j), ... 
+         %       'MaxRatio', maxRatio(i), ... 
+          %      'Metric', 'SSD', ...
+             %   'Unique', true); 
 
         %% Get distance between matching points
         % this makes sense, because the pointclouds are already aligned. The
@@ -52,15 +54,15 @@ for i = 1:length(maxRatio)
         inliersPrecision = inliers1/size(d1, 1)*100;
 
         % matches of surface and random crop
-        loc2M = featRand(matchesRand(:, 2), :);
-        loc2S = featSurface(matchesRand(:, 1), :);
-        d2 = vecnorm(loc2M - loc2S, 2, 2);
-        inliers2 = length(find(d2 <= maxDist));
+        %loc2M = featRand(matchesRand(:, 2), :);
+        %loc2S = featSurface(matchesRand(:, 1), :);
+        %d2 = vecnorm(loc2M - loc2S, 2, 2);
+        %inliers2 = length(find(d2 <= maxDist));
 
         % save results for this run
         precision(i, j) = inliersPrecision;
         goodInliers(i, j) = inliers1;
-        badInliers(i, j) = inliers2;
+        %badInliers(i, j) = inliers2;
     end
     toc
 end

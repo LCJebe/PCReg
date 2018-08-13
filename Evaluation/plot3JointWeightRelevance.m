@@ -17,37 +17,29 @@ phi_deg = rad2deg(phi);
 [theta_grid, phi_grid] = meshgrid(theta_deg, phi_deg);
 
 %%
-weights.M1 = 0;
 
 precision = zeros(length(theta), length(phi));
 goodInliers = zeros(length(theta), length(phi));
 
 tic
 for p = 1:length(phi)
-    for t = 1:length(theta)
+    parfor t = 1:length(theta)
 
-        weights.M2 = sin(phi(p)) * cos(theta(t));  
-        weights.M4 = sin(phi(p)) * sin(theta(t)); 
-        weights.M3 = cos(phi(p)); 
+        weights = [0, sin(phi(p)) * cos(theta(t)), ...
+            sin(phi(p)) * sin(theta(t)), ...
+            cos(phi(p))];  
 
         descSurfaceW = applyMomentWeight(descSurface, weights);
         descModelW = applyMomentWeight(descModel, weights);
 
         %% Match features between Surface and Model / Random Crop
 
-        % Define matching algorithm parameters
-        par.Method = 'Approximate'; % 'Exhaustive' (default) or 'Approximate'
-        par.MatchThreshold =  1; % 1.0 (default) Percent Value (0 - 100) for distance-reject
-        par.MaxRatio = 0.8; % 0.6 (default) nearest neighbor ambiguity rejection
-        par.Metric =  'SSD'; % SSD (default) for L2, SAD for L1
-        par.Unique = true; % true: 1-to-1 mapping only, else set false (default)
-
         matchesModel = matchFeatures(descSurfaceW, descModelW, ...
-                'Method', par.Method, ...
-                'MatchThreshold', par.MatchThreshold, ... 
-                'MaxRatio', par.MaxRatio, ... 
-                'Metric', par.Metric, ...
-                'Unique', par.Unique); 
+                'Method', 'Approximate', ...
+                'MatchThreshold', 0.6, ... 
+                'MaxRatio', 0.6, ... 
+                'Metric', 'SSD', ...
+                'Unique', true); 
 
 
         %% Get distance between matching points
@@ -73,8 +65,8 @@ for p = 1:length(phi)
         goodInliers(t, p) = inliers1;
 
     end 
+    toc
 end
-toc
 %% Plots
 close all;
 
@@ -95,8 +87,8 @@ colorbar
 %% helper function that applies weight to descriptor
 function descW = applyMomentWeight(desc, weights)
     descW = desc;
-    descW(:, 1:6) = desc(:, 1:6)*weights.M1;
-    descW(:, 7:12) = desc(:, 7:12)*weights.M2;
-    descW(:, 13:22) = desc(:, 13:22)*weights.M3;
-    descW(:, 23:31) = desc(:, 23:31)*weights.M4;
+    descW(:, 1:6) = desc(:, 1:6)*weights(1);
+    descW(:, 7:12) = desc(:, 7:12)*weights(2);
+    descW(:, 13:22) = desc(:, 13:22)*weights(3);
+    descW(:, 23:31) = desc(:, 23:31)*weights(4);
 end

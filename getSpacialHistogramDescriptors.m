@@ -1,5 +1,5 @@
 %% function to calculate a descriptor for each point
-function [feat, desc, ang] = getMomentDescriptors(pts, sample_pts, min_pts, R, thVar, ALIGN_POINTS, CENTER, K)
+function [feat, desc] = getSpacialHistogramDescriptors(pts, sample_pts, min_pts, R, thVar, ALIGN_POINTS, CENTER, K)
     % pts: points in pointcloud
     % sample_pts: points to calculate descriptors at
     % min_points: minimum number of points in sphere
@@ -10,13 +10,20 @@ function [feat, desc, ang] = getMomentDescriptors(pts, sample_pts, min_pts, R, t
     % returns:
         % - feat: feature locations
         % - desc: feature descriptors
+        
+        
+    % define histogram layout (bins) in spherical coordinates
+    % it should be NUM_PHI = 2*NUM_THETA
+    NUM_R = 2; % 2
+    NUM_THETA = 3; % 3
+    NUM_PHI = 6; % 6
+
 
        
-    % preallocate space for features and descriptors, even though we don't
-    % know their length
-    desc = nan(size(sample_pts, 1), 31);
+    % preallocate space for features and descriptors    
+    desc = nan(size(sample_pts, 1), NUM_R * NUM_PHI * NUM_THETA);
     feat = nan(size(sample_pts, 1), 3);
-    ang = nan(size(sample_pts, 1), 3);
+    
     tic
     parfor i = 1:size(sample_pts, 1) % PARFOR
         c = sample_pts(i, :);
@@ -73,51 +80,32 @@ function [feat, desc, ang] = getMomentDescriptors(pts, sample_pts, min_pts, R, t
             end
             
             % ---- calculate the descriptor
-            % get first order moments [X, Y Z]
-            M1_L2 = mean(pts_local, 1);
-            M1_L1 = median(pts_local, 1);
-            
-            % center to median point coordinates
+            % center to mean/median point coordinates
+            M1_L1 = mean(pts_local, 1)
             if CENTER
                 pts_local = pts_local - M1_L1;
                 c = c - M1_L1;
             end
-
-            % get second order moments [XX, YY, ZZ, XY, XZ, YZ];
-            M2 = (pts_local' * pts_local) / num_points;
-            M2_L2 = [M2(1,1), M2(2,2), M2(3,3), M2(1,2), M2(1,3), M2(2, 3)];
             
-            % get third order moments
-            pts2 = pts_local.^2;
-            % [XXX, YYY, ZZZ, XXY, XXZ, YYX, YYZ, ZZX, ZZY] (order differs)
-            M3 = (pts2' * pts_local) / num_points;
-            % [XYZ]
-            mom3XYZ = mean(pts_local(:,1).*pts_local(:,2).*pts_local(:,3), 1);
-            M3_L2 = [reshape(M3, 1, []), mom3XYZ];
+            % transform points into spherical coordinates
+            r_spheric = vecnorm(pts_local, 2, 2);
+            theta_spheric = acos(pts_local(:, 3) ./ r_spheric);
+            phi_spheric = atan2(pts_local(:, 2), pts_local(:, 2));
+            pts_spheric = [r_spheric, theta_spheric, phi_spheric];
             
-            % get pure and semi-pure fourth order moments
-            M4 = (pts2'*pts2) / num_points;
-            % [XXXX, YYYY, ZZZZ, XXYY, XXZZ, YYXX, YYZZ, ZZXX, ZZYY] (order
-            % differs)
-            M4_L2 = reshape(M4, 1, []);
-
-            % descriptor structure is 
-            % [X, Y, Z, X, Y, Z, XX, YY, ZZ, XY, XZ, YZ, XXX, YYY, ZZZ, XXY,
-            % XXZ, YYX, YYZ, ZZX, ZZY, XYZ], 
-            % where the first X, Y, Z are in L2 norm and the second X, Y, Z are
-            % in L1 norm
-            new_entry = [M1_L2, ...
-                         M1_L1, ...
-                         M2_L2, ...
-                         M3_L2, ...
-                         M4_L2];
-
+            r_equi = 0:R^3/NUM_R:R^3;
+            r_bins = nthroot(r_equi, 3);
+            phi_bins = -pi:2*pi/NUM_PHI:pi;
+            theta_bins = 0:pi/NUM_THETA:pi;
+            
+            % get trivariate histogram
+            [counts, ~, ~, ~] = histcn(pts_spheric, r_bins, theta_bins, phi_bins);
+            
+            % flatten 3D histogram to 1D and normalize
+            new_entry = reshape(counts, [], 1) / size(pts_local, 1);
+            
             desc(i, :) = new_entry;
             feat(i, :) = c;
-            %% DEBUG
-            ang(i, :) = coeff_unambig(:, 1); % DEBUG
-            %desc = [desc; new_entry];
-            %feat = [feat; c];
         end
     end
     

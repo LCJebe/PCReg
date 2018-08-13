@@ -175,19 +175,31 @@ custom_cmap(end-span+1:end, :) = cmap;
 if enable_3D_edges
     
     % detect all edges in 3D    
-    kernel_6conn = ones(3, 3, 3);
-    kernel_6conn(1, 2, 2) = 21;
-    kernel_6conn(2, 1, 2) = 21;
-    kernel_6conn(2, 2, 1) = 21;
-    kernel_6conn(3, 2, 2) = 21;
-    kernel_6conn(2, 3, 2) = 21;
-    kernel_6conn(2, 2, 3) = 21;
-    kernel_6conn(2, 2, 2) = 147;    
+%     kernel_6conn = ones(3, 3, 3);
+%     kernel_6conn(1, 2, 2) = 21;
+%     kernel_6conn(2, 1, 2) = 21;
+%     kernel_6conn(2, 2, 1) = 21;
+%     kernel_6conn(3, 2, 2) = 21;
+%     kernel_6conn(2, 3, 2) = 21;
+%     kernel_6conn(2, 2, 3) = 21;
+%     kernel_6conn(2, 2, 2) = 147;    
+% 
+    kernel_6conn = zeros(3, 3, 3);
+    kernel_6conn(1, 2, 2) = 1;
+    kernel_6conn(2, 1, 2) = 1;
+    kernel_6conn(2, 2, 1) = 1;
+    kernel_6conn(3, 2, 2) = 1;
+    kernel_6conn(2, 3, 2) = 1;
+    kernel_6conn(2, 2, 3) = 1;
+    kernel_6conn(2, 2, 2) = 7; 
+    
 
     conMap6 = convn(Vb, kernel_6conn, 'valid');
-    conMap6 = padarray(conMap6, [1, 1, 1], 294, 'both'); 
+    %conMap6 = padarray(conMap6, [1, 1, 1], 294, 'both'); 
+    conMap6 = padarray(conMap6, [1, 1, 1], 13, 'both'); 
     Ve3D_6conn = Vb;
-    Ve3D_6conn(conMap6 >= 293) = 0;
+    %Ve3D_6conn(conMap6 >= 293) = 0;
+    Ve3D_6conn(conMap6 == 13) = 0;
 
     
     % show edge Volume

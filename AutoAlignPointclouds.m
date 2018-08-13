@@ -2,9 +2,12 @@
 % pcModel and pcSurface should also be in the workspace
 
 %% apply estimated transformation to Model (pts1)
-tform = affine3d(T);
 
-pcModel_aligend = pctransform(pcModel, tform);
+pts = pcModel.Location;
+color = pcModel.Color;
+pts_tform = [pts, ones(size(pts, 1), 1)] * T;
+
+pcModel_aligend = pointCloud(pts_tform(:, 1:3), 'Color', color);
 
 %% Save aligned model to pcd file
 path = 'Data/PointClouds/';

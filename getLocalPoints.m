@@ -1,7 +1,7 @@
 %% Function: get points within sphere
 % returns only the points from pts that are within a certain radius R
 % of center point c if there are at least min_points in it
-% RETURNS: Points RELATIVE to c, optinally sorted by distance. 
+% RETURNS: Points RELATIVE to c
 function [pts_sphere, dists] = getLocalPoints(pts, R, c, min_points)
 
     % first: quickly crop cube around the center

@@ -27,7 +27,7 @@ for t = 1:length(theta)
     %% Match features between Surface and Model / Random Crop
 
     % Define matching algorithm parameters
-    par.Method = 'Exhaustive'; % 'Exhaustive' (default) or 'Approximate'
+    par.Method = 'Approximate'; % 'Exhaustive' (default) or 'Approximate'
     par.MatchThreshold =  1; % 1.0 (default) Percent Value (0 - 100) for distance-reject
     par.MaxRatio = 0.8; % 0.6 (default) nearest neighbor ambiguity rejection
     par.Metric =  'SSD'; % SSD (default) for L2, SAD for L1
@@ -40,12 +40,12 @@ for t = 1:length(theta)
             'Metric', par.Metric, ...
             'Unique', par.Unique); 
 
-    matchesRand = matchFeatures(descSurfaceW, descRandW, ...
-            'Method', par.Method, ...
-            'MatchThreshold', par.MatchThreshold, ... 
-            'MaxRatio', par.MaxRatio, ... 
-            'Metric', par.Metric, ...
-            'Unique', par.Unique); 
+%     matchesRand = matchFeatures(descSurfaceW, descRandW, ...
+%             'Method', par.Method, ...
+%             'MatchThreshold', par.MatchThreshold, ... 
+%             'MaxRatio', par.MaxRatio, ... 
+%             'Metric', par.Metric, ...
+%             'Unique', par.Unique); 
 
     %% Get distance between matching points
     % this makes sense, because the pointclouds are already aligned. The
@@ -66,10 +66,10 @@ for t = 1:length(theta)
     inliersPrecision = inliers1/size(d1, 1)*100;
 
     % matches of surface and random crop
-    loc2M = featRand(matchesRand(:, 2), :);
-    loc2S = featSurface(matchesRand(:, 1), :);
-    d2 = vecnorm(loc2M - loc2S, 2, 2);
-    inliers2 = length(find(d2 <= maxDist));
+%     loc2M = featRand(matchesRand(:, 2), :);
+%     loc2S = featSurface(matchesRand(:, 1), :);
+%     d2 = vecnorm(loc2M - loc2S, 2, 2);
+%     inliers2 = length(find(d2 <= maxDist));
 
     % fill results for curve
     precision(t) = inliersPrecision;
