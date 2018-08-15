@@ -19,17 +19,17 @@ end
 %% set RANSAC Parameters
 
 coeff.minPtNum = 3;
-coeff.iterNum = 2e4;
-coeff.thDist = 1.3;
+coeff.iterNum = 5e4;
+coeff.thDist = 1.0;
 coeff.thInlrRatio = 0.025;
 
 %% Perform RANSAC with rigid transform T and distance function
-
+REFINE = false;
 tic
 if ~ DEBUG
-    [T, inlierPtIdx] = ransac(pts1,pts2,coeff,@estimateTransform,@calcDists);
+    [T, inlierPtIdx] = ransac(pts1,pts2,coeff,@estimateTransform,@calcDists, REFINE);
 else
-    [T, inlierPtIdx] = ransac(pts1,pts2_postalign,coeff,@estimateTransform,@calcDists);
+    [T, inlierPtIdx] = ransac(pts1,pts2_postalign,coeff,@estimateTransform,@calcDists, REFINE);
 end
 toc
 

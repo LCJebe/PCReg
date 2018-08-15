@@ -1,4 +1,4 @@
-function [T, inlierIdx] = ransac( pts1,pts2,ransacCoef,funcFindTransf,funcDist )
+function [T, inlierIdx] = ransac( pts1,pts2,ransacCoef,funcFindTransf,funcDist, REFINE)
     %[T, inlierIdx] = ransac1( pts1,pts2,ransacCoef,funcFindTransf,funcDist )
     %	Use RANdom SAmple Consensus to find a fit from PTS1 to PTS2.
     %	PTS1 is M*n matrix including n points with dim M, PTS2 is N*n;
@@ -46,7 +46,11 @@ function [T, inlierIdx] = ransac( pts1,pts2,ransacCoef,funcFindTransf,funcDist )
 
         % refit if enough inliers
         if length(inlier1) >= thInlr
-            TForms{p} = funcFindTransf(pts1(inlier1, :),pts2(inlier1, :));
+            if REFINE
+                TForms{p} = funcFindTransf(pts1(inlier1, :),pts2(inlier1, :));
+            else
+                TForms{p} = f1;
+            end
         end      
     end
 

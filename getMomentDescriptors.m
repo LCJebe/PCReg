@@ -10,7 +10,7 @@ function [feat, desc, ang] = getMomentDescriptors(pts, sample_pts, min_pts, R, t
     % returns:
         % - feat: feature locations
         % - desc: feature descriptors
-
+        
        
     % preallocate space for features and descriptors, even though we don't
     % know their length
@@ -111,6 +111,7 @@ function [feat, desc, ang] = getMomentDescriptors(pts, sample_pts, min_pts, R, t
                          M2_L2, ...
                          M3_L2, ...
                          M4_L2];
+                     
 
             desc(i, :) = new_entry;
             feat(i, :) = c;
