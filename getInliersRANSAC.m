@@ -5,8 +5,8 @@ DEBUG = false;
 % matching points from model (loc1M) and surface(loc1S)
 % to test with bad crop, use loc2M and loc2S
 
-pts1 = loc1M; % Model
-pts2 = loc1S; % Surface
+pts1 = loc2M; % Model
+pts2 = loc2S; % Surface
 
 %% debug: transform points to alignment manually and run RANSAC 
 % (--> should return identity transform ideally)
@@ -19,12 +19,12 @@ end
 %% set RANSAC Parameters
 
 coeff.minPtNum = 3;
-coeff.iterNum = 5e4;
+coeff.iterNum = 3e4;
 coeff.thDist = 1.0;
-coeff.thInlrRatio = 0.025;
+coeff.thInlrRatio = 0.1;
 
 %% Perform RANSAC with rigid transform T and distance function
-REFINE = false;
+REFINE = true;
 tic
 if ~ DEBUG
     [T, inlierPtIdx] = ransac(pts1,pts2,coeff,@estimateTransform,@calcDists, REFINE);

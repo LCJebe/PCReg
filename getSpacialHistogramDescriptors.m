@@ -1,5 +1,5 @@
 %% function to calculate a descriptor for each point
-function [feat, desc] = getSpacialHistogramDescriptors(pts, sample_pts, min_pts, R, thVar, ALIGN_POINTS, CENTER, K)
+function [feat, desc] = getSpacialHistogramDescriptors(pts, sample_pts, min_pts, max_pts, R, thVar, ALIGN_POINTS, CENTER, K)
     % pts: points in pointcloud
     % sample_pts: points to calculate descriptors at
     % min_points: minimum number of points in sphere
@@ -11,12 +11,15 @@ function [feat, desc] = getSpacialHistogramDescriptors(pts, sample_pts, min_pts,
         % - feat: feature locations
         % - desc: feature descriptors
         
+    % options
+    NORMALIZE = false; % should be true unless point density is similar
+        
         
     % define histogram layout (bins) in spherical coordinates
     % it should be NUM_PHI = 2*NUM_THETA
-    NUM_R = 2; % 2
-    NUM_THETA = 3; % 3
-    NUM_PHI = 6; % 6
+    NUM_R = 10; % 10
+    NUM_THETA = 7; % 7
+    NUM_PHI = 14; % 14
 
 
        
@@ -29,7 +32,7 @@ function [feat, desc] = getSpacialHistogramDescriptors(pts, sample_pts, min_pts,
         c = sample_pts(i, :);
         
         % return local points
-        [pts_local, dists] = getLocalPoints(pts, R, c, min_pts);
+        [pts_local, dists] = getLocalPoints(pts, R, c, min_pts, max_pts);
 
         if ~ isempty(pts_local) 
             num_points = size(pts_local, 1);
@@ -101,8 +104,13 @@ function [feat, desc] = getSpacialHistogramDescriptors(pts, sample_pts, min_pts,
             % get trivariate histogram
             [counts, ~, ~, ~] = histcn(pts_spheric, r_bins, theta_bins, phi_bins);
             
-            % flatten 3D histogram to 1D and normalize
-            new_entry = reshape(counts, [], 1) / size(pts_local, 1);
+            % flatten 3D histogram to 1D
+            new_entry = reshape(counts, [], 1)
+            
+            % optional: normalize
+            if NORMALIZE
+                new_entry = new_entry / size(pts_local, 1);
+            end
             
             desc(i, :) = new_entry;
             feat(i, :) = c;

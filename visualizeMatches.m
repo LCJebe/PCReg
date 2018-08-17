@@ -3,7 +3,7 @@ close all
 
 % options. If choisng RANSAC, then it's INLIERS_ONLY always!
 RANSAC = false;
-INLIERS_ONLY = false;
+INLIERS_ONLY = true;
 MAX_MATCHES = 40;
 
 % figure settings
@@ -29,6 +29,7 @@ for i = 1:num_matches
             coordSurface = featSurface(matchesModel(inlier_idx(i), 1), :);
             coordModel = featModel(matchesModel(inlier_idx(i), 2), :);
         else
+            % visualize random matches
             matches_vis = randperm(size(matchesModel, 1),num_matches);
             coordSurface = featSurface(matchesModel(matches_vis(i), 1), :);
             coordModel = featModel(matchesModel(matches_vis(i), 2), :);
@@ -39,8 +40,8 @@ for i = 1:num_matches
     end
 
     % get local points for each support region
-    ptsMatchSurface = getLocalPoints(ptsSurface, R, coordSurface, min_pts);
-    ptsMatchModel = getLocalPoints(ptsModel, R, coordModel, min_pts);
+    ptsMatchSurface = getLocalPoints(ptsSurface, R, coordSurface, min_pts, max_pts);
+    ptsMatchModel = getLocalPoints(ptsModel, R, coordModel, min_pts, max_pts);
 
     % visualize
     row = mod(i-1, 4)+1;

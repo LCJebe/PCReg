@@ -116,14 +116,17 @@ ALIGN_POINTS = true;
 CENTER = false;
 
 % specify minimum number of points that has to be in sphere
-min_pts = 201; % 51 / 101
+min_pts = 500; % 51 / 101 / 551
+
+% specify maximum number of points that can be in sphere
+max_pts = 4000; % inf / 3*min_pts / 8*min_pts
 
 % specify radius of spheres (local descriptor neighborhood)
-R = 2.5; % 1.5 / 2.5
+R = 3.5; % 1.5 / 2.5 / 3.5
 
 % specify the reject threshold for eccentricity (covar-eigenvalues), value
 % must be >= 1 
-thVar = [2, 1.2]; % [1.5, 1.5] / [3, 1]
+thVar = [3, 1]; % [1.5, 1.5] / [3, 1] 
 
 % specify number of nearest neighbors (KNN) to use for local reference
 % frame. Number should be <= min_points, or write 'all'
@@ -137,23 +140,23 @@ ptsSurface = pcSurface.Location;
 
 % calculate the descriptos with the specified method
 if strcmp(descriptor, 'Moment')    
-    [featModel, descModel, angModel] = getMomentDescriptors(ptsModel, sample_ptsModel, min_pts, R, thVar, ALIGN_POINTS, CENTER, k);
+    [featModel, descModel, angModel] = getMomentDescriptors(ptsModel, sample_ptsModel, min_pts, max_pts, R, thVar, ALIGN_POINTS, CENTER, k);
     if RAND_CROP
-        [featRand, descRand, angRand] = getMomentDescriptors(ptsRand, sample_ptsRand, min_pts, R, thVar, ALIGN_POINTS, CENTER, k);
+        [featRand, descRand, angRand] = getMomentDescriptors(ptsRand, sample_ptsRand, min_pts, max_pts, R, thVar, ALIGN_POINTS, CENTER, k);
     end
-    [featSurface, descSurface, angSurface] = getMomentDescriptors(ptsSurface, sample_ptsSurface, min_pts, R, thVar, ALIGN_POINTS, CENTER, k);        
+    [featSurface, descSurface, angSurface] = getMomentDescriptors(ptsSurface, sample_ptsSurface, min_pts, max_pts, R, thVar, ALIGN_POINTS, CENTER, k);        
 elseif strcmp(descriptor, 'Rotational')    
-    [featModel, descModel] = getRotationalDescriptors(ptsModel, sample_ptsModel, min_pts, R);
+    [featModel, descModel] = getRotationalDescriptors(ptsModel, sample_ptsModel, min_pts, max_pts, R);
     if RAND_CROP
-        [featRand, descRand] = getRotationalDescriptors(ptsRand, sample_ptsRand, min_pts, R);
+        [featRand, descRand] = getRotationalDescriptors(ptsRand, sample_ptsRand, min_pts, max_pts, R);
     end
-    [featSurface, descSurface] = getRotationalDescriptors(ptsSurface, sample_ptsSurface, min_pts, R);
+    [featSurface, descSurface] = getRotationalDescriptors(ptsSurface, sample_ptsSurface, min_pts, max_pts, R);
 elseif strcmp(descriptor, 'Histogram')    
-    [featModel, descModel] = getSpacialHistogramDescriptors(ptsModel, sample_ptsModel, min_pts, R, thVar, ALIGN_POINTS, CENTER, k);
+    [featModel, descModel] = getSpacialHistogramDescriptors(ptsModel, sample_ptsModel, min_pts, max_pts, R, thVar, ALIGN_POINTS, CENTER, k);
     if RAND_CROP
-        [featRand, descRand] = getSpacialHistogramDescriptors(ptsRand, sample_ptsRand, min_pts, R, thVar, ALIGN_POINTS, CENTER, k);
+        [featRand, descRand] = getSpacialHistogramDescriptors(ptsRand, sample_ptsRand, min_pts, max_pts, R, thVar, ALIGN_POINTS, CENTER, k);
     end
-    [featSurface, descSurface] = getSpacialHistogramDescriptors(ptsSurface, sample_ptsSurface, min_pts, R, thVar, ALIGN_POINTS, CENTER, k);        
+    [featSurface, descSurface] = getSpacialHistogramDescriptors(ptsSurface, sample_ptsSurface, min_pts, max_pts, R, thVar, ALIGN_POINTS, CENTER, k);        
 else
     error('Descriptor method must be either Moment or Rotational');
 end
@@ -180,16 +183,16 @@ else
 end
 
 %% optional: un-normalize descriptors before matching
-UNNORMALIZE = false;
-norm_factor = 1;
+UNNORMALIZE = true;
+norm_factor = 3;
 
 if UNNORMALIZE
     % get average descriptor length
-    avg_desc_len = norm_factor*mean(vecnorm([descSurfaceW; descModelW], 2, 2));
-    descSurfaceN = [descSurfaceW, avg_desc_len*ones(size(descSurfaceW, 1), 1)]; 
-    descModelN = [descModelW, avg_desc_len*ones(size(descModelW, 1), 1)];
+    avg_desc_len = mean(vecnorm([descSurfaceW; descModelW], 1, 2));
+    descSurfaceN = [descSurfaceW,  norm_factor*avg_desc_len*ones(size(descSurfaceW, 1), 1)]; 
+    descModelN = [descModelW,  norm_factor*avg_desc_len*ones(size(descModelW, 1), 1)];
     if RAND_CROP
-        descRandN = [descRandW, avg_desc_len*ones(size(descRandW, 1), 1)];
+        descRandN = [descRandW,  norm_factor*avg_desc_len*ones(size(descRandW, 1), 1)];
     end
 else
     descSurfaceN = descSurfaceW;
@@ -198,31 +201,49 @@ else
         descRandN = descRandW;
     end
 end
+
+%% optional: raise descriptors to power to change L1 distance metric
+CHANGE_METRIC = true;
+metric_factor = 0.35; % 0.4
+
+if CHANGE_METRIC
+    descSurfaceC = descSurfaceN.^metric_factor;
+    descModelC = descModelN.^metric_factor;
+    if RAND_CROP
+        descRandC = descRandN.^metric_factor;
+    end
+else
+    descSurfaceC = descSurfaceN;
+    descModelC = descModelN;
+    if RAND_CROP
+        descRandC = descRandN;
+    end
+end
     
 %% Modify descriptors based on their variance --> Mahalanobis Distance
 % get covariance matrix of all descriptors (this is a 31x31 matrix)
-S_Model = cov([descModelN; descSurfaceN]);
-S_Rand = cov([descRandN; descSurfaceN]);
+S_Model = cov([descModelC; descSurfaceC]);
+S_Rand = cov([descRandC; descSurfaceC]);
 
 % get square root, so that A'*A = S (S is hermitian)
 A_Model = real(S_Model^0.5);
 A_Rand = real(S_Rand^0.5);
 
 % Modify Descriptors accordingly
-descModel_Mnobis = descModelN*A_Model;
-descSurfaceM_Mnobis = descSurfaceN*A_Model;
+descModel_Mnobis = descModelC*A_Model;
+descSurfaceM_Mnobis = descSurfaceC*A_Model;
 
-descRand_Mnobis = descRandN*A_Rand;
-descSurfaceR_Mnobis = descSurfaceN*A_Rand;
+descRand_Mnobis = descRandC*A_Rand;
+descSurfaceR_Mnobis = descSurfaceC*A_Rand;
 
 %% Match features between Surface and Model / Random Crop
 
 % Define matching algorithm parameters
-par.MAHALANOBIS = true; % use Mahalanobis Distance instead of L2
+par.MAHALANOBIS = false; % use Mahalanobis Distance instead of L2
 par.Method = 'Approximate'; % 'Exhaustive' (default) or 'Approximate'
-par.MatchThreshold =  0.05; % 1.0 (default) Percent Value (0 - 100) for distance-reject
-par.MaxRatio = 0.6; % 0.6 (default) nearest neighbor ambiguity rejection
-par.Metric =  'SSD'; % SSD (default) for L2, SAD for L1
+par.MatchThreshold = 10; % 1.0 (default) Percent Value (0 - 100) for distance-reject
+par.MaxRatio = 0.95; % 0.6 (default) nearest neighbor ambiguity rejection
+par.Metric =  'SAD'; % SSD (default) for L2, SAD for L1
 par.Unique = true; % true: 1-to-1 mapping only, else set false (default)
 
 if par.MAHALANOBIS
@@ -231,10 +252,10 @@ if par.MAHALANOBIS
     dSR = descSurfaceR_Mnobis;
     dRR = descRand_Mnobis;
 else
-    dSM = descSurfaceN;
-    dMM = descModelN;
-    dSR = descSurfaceN;
-    dRR = descRandN;
+    dSM = descSurfaceC;
+    dMM = descModelC;
+    dSR = descSurfaceC;
+    dRR = descRandC;
 end
 
 matchesModel = matchFeatures(dSM, dMM, ...
@@ -259,7 +280,7 @@ end
 % inlier 
 
 % maxDist specifies matching distance to count inliers 
-maxDist = 1.2; 
+maxDist = 1.0; 
 
 % matches of surface and model
 loc1S = featSurface(matchesModel(:, 1), :);

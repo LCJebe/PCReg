@@ -1,5 +1,5 @@
 %% function to calculate a descriptor for each point
-function [feat, desc, ang] = getMomentDescriptors(pts, sample_pts, min_pts, R, thVar, ALIGN_POINTS, CENTER, K)
+function [feat, desc, ang] = getMomentDescriptors(pts, sample_pts, min_pts, max_pts, R, thVar, ALIGN_POINTS, CENTER, K)
     % pts: points in pointcloud
     % sample_pts: points to calculate descriptors at
     % min_points: minimum number of points in sphere
@@ -22,7 +22,7 @@ function [feat, desc, ang] = getMomentDescriptors(pts, sample_pts, min_pts, R, t
         c = sample_pts(i, :);
         
         % return local points
-        [pts_local, dists] = getLocalPoints(pts, R, c, min_pts);
+        [pts_local, dists] = getLocalPoints(pts, R, c, min_pts, max_pts);
 
         if ~ isempty(pts_local) 
             num_points = size(pts_local, 1);

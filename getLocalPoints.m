@@ -2,7 +2,7 @@
 % returns only the points from pts that are within a certain radius R
 % of center point c if there are at least min_points in it
 % RETURNS: Points RELATIVE to c
-function [pts_sphere, dists] = getLocalPoints(pts, R, c, min_points)
+function [pts_sphere, dists] = getLocalPoints(pts, R, c, min_points, max_points)
 
     % first: quickly crop cube around the center
     xLim = c(1) + [-R, R];
@@ -28,7 +28,7 @@ function [pts_sphere, dists] = getLocalPoints(pts, R, c, min_points)
         pts_sphere = reshape(pts_rel(mask), [], 3);    
         
         % reject if not enough points found
-        if size(pts_sphere, 1) < min_points
+        if (size(pts_sphere, 1) < min_points) || (size(pts_sphere, 1)> max_points)
             pts_sphere = [];
             dists = [];
         end
