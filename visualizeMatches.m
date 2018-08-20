@@ -3,12 +3,17 @@ close all
 
 % options. If choisng RANSAC, then it's INLIERS_ONLY always!
 RANSAC = false;
-INLIERS_ONLY = true;
+INLIERS_ONLY = true; % false means: no inliers, only wrong matches. 
 MAX_MATCHES = 40;
+ALIGN = true;
 
 % figure settings
 screensize = get( 0, 'Screensize' );
-figpos = [screensize(3)/3, 100, screensize(3)/3, screensize(4)-200];
+if ~ALIGN
+    figpos = [screensize(3)/3, 75, screensize(3)/3, screensize(4)-150];
+else 
+    figpos = [screensize(3)/6, 75, 2*screensize(3)/3, screensize(4)-150];
+end
 
 % get coordinates from Model and Surface of Match
 if ~RANSAC
@@ -23,38 +28,93 @@ end
 
 num_matches = min([num_matches, MAX_MATCHES]);
 
+% for better display: generate the 8 points that span the cube defined by R
+add_pts = descOpt.R*[-1,-1,-1;...
+                     -1,-1, 1;...
+                     -1, 1,-1;...
+                     -1, 1, 1;...
+                      1,-1,-1;...
+                      1,-1, 1;...
+                      1, 1,-1;...
+                      1, 1, 1];
+                  
+                  
+% visualize random matches
+matches_vis = randperm(size(matchesModel, 1));
+% remove inliers from matches_vis
+matches_vis = setdiff(matches_vis,inlier_idx);
+matches_vis = matches_vis(1:num_matches);
+
 for i = 1:num_matches
     if ~RANSAC
         if INLIERS_ONLY
             coordSurface = featSurface(matchesModel(inlier_idx(i), 1), :);
             coordModel = featModel(matchesModel(inlier_idx(i), 2), :);
-        else
-            % visualize random matches
-            matches_vis = randperm(size(matchesModel, 1),num_matches);
+        else           
             coordSurface = featSurface(matchesModel(matches_vis(i), 1), :);
             coordModel = featModel(matchesModel(matches_vis(i), 2), :);
-        end
+        end 
     else
         coordSurface = featSurface(matchesModel(inlierPtIdx(i), 1), :);
         coordModel = featModel(matchesModel(inlierPtIdx(i), 2), :);
     end
-
+    
+    % get distance between coords (used to determine inliers)
+    coord_dist = norm(coordSurface - coordModel);
+    
     % get local points for each support region
-    ptsMatchSurface = getLocalPoints(ptsSurface, R, coordSurface, min_pts, max_pts);
-    ptsMatchModel = getLocalPoints(ptsModel, R, coordModel, min_pts, max_pts);
-
-    % visualize
-    row = mod(i-1, 4)+1;
-    if row ==1
-       fig_h = figure();
-       set(fig_h,'Position',figpos)
+    ptsMatchSurface = getLocalPoints(ptsSurface, descOpt.R, coordSurface, descOpt.min_pts, descOpt.max_pts);
+    ptsMatchModel = getLocalPoints(ptsModel, descOpt.R, coordModel, descOpt.min_pts, descOpt.max_pts);
+    
+    % optional: align to local reference frame
+    if ALIGN
+        [ptsMatchSurface_aligned, ~] = AlignPoints(ptsMatchSurface);
+        [ptsMatchModel_aligned, ~] = AlignPoints(ptsMatchModel);
     end
-    subplot(4, 2, 2*row-1);
-    pcshow(pointCloud(ptsMatchSurface), 'MarkerSize', 50);
-    if row == 1; title('Surface'); end
-    subplot(4, 2, 2*row);
-    pcshow(pointCloud(ptsMatchModel), 'MarkerSize', 50);
-    if row == 1; title('Model'); end
+    
+    % add frame points for display
+    ptsMatchSurface = [ptsMatchSurface; add_pts];
+    ptsMatchModel = [ptsMatchModel; add_pts];
+    if ALIGN
+        ptsMatchSurface_aligned = [ptsMatchSurface_aligned; add_pts];
+        ptsMatchModel_aligned = [ptsMatchModel_aligned; add_pts];
+    end
+    
+    
+    % visualize
+    if ~ ALIGN
+        row = mod(i-1, 4)+1;
+        if row ==1
+           fig_h = figure();
+           set(fig_h,'Position',figpos)
+        end
+        subplot(4, 2, 2*row-1);
+        pcshow(ptsMatchSurface, 'MarkerSize', 50);
+        xlabel(sprintf('CoordDist: %0.1f', coord_dist));
+        if row == 1; title('Surface'); end
+        subplot(4, 2, 2*row);
+        pcshow(ptsMatchModel, 'MarkerSize', 50);
+        if row == 1; title('Model'); end
+    else
+        row = mod(i-1, 4)+1;
+        if row ==1
+           fig_h = figure();
+           set(fig_h,'Position',figpos)
+        end
+        subplot(4, 4, 4*row-3);
+        pcshow(ptsMatchSurface, 'MarkerSize', 50);
+        xlabel(sprintf('CoordDist: %0.1f', coord_dist));
+        if row == 1; title('Surface'); end
+        subplot(4, 4, 4*row-2);
+        pcshow(ptsMatchModel, 'MarkerSize', 50);
+        if row == 1; title('Model'); end
+        subplot(4, 4, 4*row-1);
+        pcshow(ptsMatchSurface_aligned, 'MarkerSize', 50);
+        if row == 1; title('Surface aligned'); end
+        subplot(4, 4, 4*row);
+        pcshow(ptsMatchModel_aligned, 'MarkerSize', 50);
+        if row == 1; title('Model aligned'); end
+    end
 end
 
 %% DEBUG: get descriptors for those and see if they are actually close...

@@ -1,4 +1,4 @@
-function pts_aligned = AlignPoints(pts)
+function [pts_aligned, coeff_unambig] = AlignPoints(pts)
 
     [coeff, pts_lrf, ~] = pca(pts, 'Algorithm', 'eig'); 
 

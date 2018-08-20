@@ -1,17 +1,29 @@
 %% function to calculate a descriptor for each point
-function [feat, desc] = getSpacialHistogramDescriptors(pts, sample_pts, min_pts, max_pts, R, thVar, ALIGN_POINTS, CENTER, K)
+function [feat, desc] = getSpacialHistogramDescriptors(pts, sample_pts, options)
     % pts: points in pointcloud
     % sample_pts: points to calculate descriptors at
-    % min_points: minimum number of points in sphere
-    % R: Radius of sphere
-    % thVar: two element vector that contains the two thresholds for the
-    % eigenvalues of the covariance matrix (sphere-reject)
+    % options.min_pts: minimum number of points in sphere
+    % options.R: Radius of sphere
+    % options.thVar: two element vector that contains the two thresholds for the
+        % eigenvalues of the covariance matrix (sphere-reject)
+    % options.ALIGN_POINTS: use local reference frame?
+    % options.CENTER: center to centroid before calculating descriptor?
+    % options.k: k nearest neighbors used for alignment
     
     % returns:
         % - feat: feature locations
         % - desc: feature descriptors
         
-    % options
+    % unpack options
+    min_pts = options.min_pts;
+    max_pts = options.max_pts;
+    R = options.R;
+    thVar = options.thVar;
+    K = options.k;
+    ALIGN_POINTS = options.ALIGN_POINTS;
+    CENTER = options.CENTER;
+        
+    % more internal options
     NORMALIZE = false; % should be true unless point density is similar
         
         
@@ -20,8 +32,6 @@ function [feat, desc] = getSpacialHistogramDescriptors(pts, sample_pts, min_pts,
     NUM_R = 10; % 10
     NUM_THETA = 7; % 7
     NUM_PHI = 14; % 14
-
-
        
     % preallocate space for features and descriptors    
     desc = nan(size(sample_pts, 1), NUM_R * NUM_PHI * NUM_THETA);
@@ -33,7 +43,7 @@ function [feat, desc] = getSpacialHistogramDescriptors(pts, sample_pts, min_pts,
         
         % return local points
         [pts_local, dists] = getLocalPoints(pts, R, c, min_pts, max_pts);
-
+        
         if ~ isempty(pts_local) 
             num_points = size(pts_local, 1);
             
@@ -49,7 +59,8 @@ function [feat, desc] = getSpacialHistogramDescriptors(pts, sample_pts, min_pts,
             end
             pts_k = pts_local(1:k, :);
             if ~(sum(thVar == 1) == 2) || ALIGN_POINTS
-                [coeff, pts_lrf, variances] = pca(pts_k, 'Algorithm', 'eig'); 
+                [coeff, pts_lrf, variances] = pca(pts_k, 'Algorithm', 'eig');
+                
                 % continue if constraints are not met
                 if (variances(1) / variances(2) < thVar(1)) || ...
                         (variances(2) / variances(3) < thVar(2))
@@ -77,14 +88,11 @@ function [feat, desc] = getSpacialHistogramDescriptors(pts, sample_pts, min_pts,
                 
                 % transform all points into the new coordinate system
                 pts_local = pts_local*coeff_unambig;
-                %r = rand(1, 3)*2*pi;
-                %pts_local = pts_local * eul2rotm(r);
-                %pts_local = pts_local*coeff;
             end
             
             % ---- calculate the descriptor
             % center to mean/median point coordinates
-            M1_L1 = mean(pts_local, 1)
+            M1_L1 = mean(pts_local, 1);
             if CENTER
                 pts_local = pts_local - M1_L1;
                 c = c - M1_L1;
@@ -105,7 +113,7 @@ function [feat, desc] = getSpacialHistogramDescriptors(pts, sample_pts, min_pts,
             [counts, ~, ~, ~] = histcn(pts_spheric, r_bins, theta_bins, phi_bins);
             
             % flatten 3D histogram to 1D
-            new_entry = reshape(counts, [], 1)
+            new_entry = reshape(counts, [], 1);
             
             % optional: normalize
             if NORMALIZE
@@ -116,6 +124,8 @@ function [feat, desc] = getSpacialHistogramDescriptors(pts, sample_pts, min_pts,
             feat(i, :) = c;
         end
     end
+
+
     
     % remove nan rows from desc and feat and return
     mask = find(~isnan(desc(:, 1))); % row indices of filled rows

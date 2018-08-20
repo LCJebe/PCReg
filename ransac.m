@@ -17,10 +17,6 @@ function [T, inlierIdx] = ransac( pts1,pts2,ransacCoef,funcFindTransf,funcDist, 
     %	FUNCDIST is a func handle, d = funcDist(f,x1,y1)
     %	It uses f returned by FUNCFINDF, and return the distance
     %	between f and the points, d is 1*n1.
-    %	For line fitting, it should calculate the dist between the line and the
-    %	points [x1;y1]; for homography, it should project x1 to y2 then
-    %	calculate the dist between y1 and y2.
-    %	Yan Ke @ THUEE, 20110123, xjed09@gmail.com
 
 
     minPtNum = ransacCoef.minPtNum;
@@ -31,9 +27,10 @@ function [T, inlierIdx] = ransac( pts1,pts2,ransacCoef,funcFindTransf,funcDist, 
     thInlr = round(thInlrRatio*ptNum);
 
     inlrNum = zeros(1,iterNum);
+    inlrNum_refined = zeros(1,iterNum);
     TForms = cell(1,iterNum);
 
-    for p = 1:iterNum %PARFOR
+    for p = 1:iterNum 
         % 1. fit using  random points
         randomInts = randperm(ptNum);
         sampleIdx = randomInts(1:minPtNum);
@@ -44,10 +41,16 @@ function [T, inlierIdx] = ransac( pts1,pts2,ransacCoef,funcFindTransf,funcDist, 
         inlier1 = find(dist < thDist);
         inlrNum(p) = length(inlier1);
 
-        % refit if enough inliers
+        % refit if enough inliers, check that threshold is still met
         if length(inlier1) >= thInlr
             if REFINE
-                TForms{p} = funcFindTransf(pts1(inlier1, :),pts2(inlier1, :));
+                f1_ref = funcFindTransf(pts1(inlier1, :),pts2(inlier1, :));
+                dist = funcDist(f1_ref,pts1,pts2);
+                inlier_refined = find(dist < thDist);
+                inlrNum_refined(p) = length(inlier_refined);
+                if inlrNum_refined(p) >= thInlr
+                    TForms{p} = f1_ref;
+                end
             else
                 TForms{p} = f1;
             end
@@ -55,19 +58,27 @@ function [T, inlierIdx] = ransac( pts1,pts2,ransacCoef,funcFindTransf,funcDist, 
     end
 
     % 3. choose the coef with the most inliers
-    [maxInliers,idx] = max(inlrNum);
+    if REFINE
+        [maxInliers,idx] = max(inlrNum_refined);
+    else
+        [maxInliers,idx] = max(inlrNum);
+    end
+    
     T = TForms{idx};
     try
         dist = funcDist(T,pts1,pts2);
-        inlier_refined = find(dist < thDist);
-        maxInliers_refined = length(inlier_refined);
     catch
         error('RANSAC could not find an appropriate transformation');
     end
+    
     inlierIdx = find(dist < thDist);
     
-    numSuccess = sum(inlrNum >= thInlr);
+    if REFINE
+        numSuccess = sum(inlrNum_refined >= thInlr);
+    else
+        numSuccess = sum(inlrNum >= thInlr);
+    end
     
-    fprintf('RANSAC succeeded %d times with a maximum of %d Inliers\n', numSuccess, maxInliers_refined);
+    fprintf('RANSAC succeeded %d times with a maximum of %d Inliers (%0.2f %%)\n', numSuccess, maxInliers, 100*maxInliers/ptNum);
 	
 end

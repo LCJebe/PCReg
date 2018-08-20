@@ -3,21 +3,21 @@ close all
 %% load model and aligned surface
 path = 'Data/PointClouds/';
 
-pcSurface = pcread(strcat(path, 'Surface_DS2_aligned.pcd'));
-pcModel = pcread(strcat(path, 'GoodCropSmoothUp3.pcd'));
+pcSurface = pcread(strcat(path, 'Surface_DS2_alignedM.pcd'));
+pcModel = pcread(strcat(path, 'GoodCropSmoothUp3_large.pcd'));
 
 %% options
-ALIGN = false;
-MAX_MATCHES = 40;
+ALIGN = true;
+MAX_MATCHES = 8;
 
 %% sample points (same for surface and model)
 d = 1;
 sample_pts = pcRandomUniformSamples(pcSurface, d);
 
 %% select points, where surface and model are not empty
-R = 1.5;
-min_pts = 101;
-max_pts = 6*min_pts;
+R = 3.5;
+min_pts = 501;
+max_pts = 8*min_pts;
 
 valid_pts = [];
 count_validS = 0;
@@ -51,9 +51,23 @@ disp(msg);
 
 %% now the fun part: visualize ground truth matches
 
+% for better display: generate the 8 points that span the cube defined by R
+add_pts = R*[-1,-1,-1;...
+             -1,-1, 1;...
+             -1, 1,-1;...
+             -1, 1, 1;...
+              1,-1,-1;...
+              1,-1, 1;...
+              1, 1,-1;...
+              1, 1, 1];
+
 % figure settings
 screensize = get( 0, 'Screensize' );
-figpos = [screensize(3)/3, 100, screensize(3)/3, screensize(4)-200];
+if ~ALIGN
+    figpos = [screensize(3)/3, 75, screensize(3)/3, screensize(4)-150];
+else 
+    figpos = [screensize(3)/6, 75, 2*screensize(3)/3, screensize(4)-150];
+end
 
 num_display = min([MAX_MATCHES, num_valid]);
 
@@ -69,22 +83,50 @@ for i = 1:num_display
     
     % optional: align to local reference frame
     if ALIGN
-        ptsMatchSurface = AlignPoints(ptsMatchSurface);
-        ptsMatchModel = AlignPoints(ptsMatchModel);
+        [ptsMatchSurface_aligned, ~] = AlignPoints(ptsMatchSurface);
+        [ptsMatchModel_aligned, ~] = AlignPoints(ptsMatchModel);
+    end
+    
+    % add frame points for display
+    ptsMatchSurface = [ptsMatchSurface; add_pts];
+    ptsMatchModel = [ptsMatchModel; add_pts];
+    if ALIGN
+        ptsMatchSurface_aligned = [ptsMatchSurface_aligned; add_pts];
+        ptsMatchModel_aligned = [ptsMatchModel_aligned; add_pts];
     end
     
     % visualize
-    row = mod(i-1, 4)+1;
-    if row ==1
-       fig_h = figure();
-       set(fig_h,'Position',figpos)
+    if ~ ALIGN
+        row = mod(i-1, 4)+1;
+        if row ==1
+           fig_h = figure();
+           set(fig_h,'Position',figpos)
+        end
+        subplot(4, 2, 2*row-1);
+        pcshow(ptsMatchSurface, 'MarkerSize', 50);
+        if row == 1; title('Surface'); end
+        subplot(4, 2, 2*row);
+        pcshow(ptsMatchModel, 'MarkerSize', 50);
+        if row == 1; title('Model'); end
+    else
+        row = mod(i-1, 4)+1;
+        if row ==1
+           fig_h = figure();
+           set(fig_h,'Position',figpos)
+        end
+        subplot(4, 4, 4*row-3);
+        pcshow(ptsMatchSurface, 'MarkerSize', 50);
+        if row == 1; title('Surface'); end
+        subplot(4, 4, 4*row-2);
+        pcshow(ptsMatchModel, 'MarkerSize', 50);
+        if row == 1; title('Model'); end
+        subplot(4, 4, 4*row-1);
+        pcshow(ptsMatchSurface_aligned, 'MarkerSize', 50);
+        if row == 1; title('Surface aligned'); end
+        subplot(4, 4, 4*row);
+        pcshow(ptsMatchModel_aligned, 'MarkerSize', 50);
+        if row == 1; title('Model aligned'); end
     end
-    subplot(4, 2, 2*row-1);
-    pcshow(pointCloud(ptsMatchSurface), 'MarkerSize', 50);
-    if row == 1; title('Surface'); end
-    subplot(4, 2, 2*row);
-    pcshow(pointCloud(ptsMatchModel), 'MarkerSize', 50);
-    if row == 1; title('Model'); end
 end
 
 

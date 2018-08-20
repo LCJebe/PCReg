@@ -1,16 +1,28 @@
 %% function to calculate a descriptor for each point
-function [feat, desc, ang] = getMomentDescriptors(pts, sample_pts, min_pts, max_pts, R, thVar, ALIGN_POINTS, CENTER, K)
+function [feat, desc, ang] = getMomentDescriptors(pts, sample_pts, options)
     % pts: points in pointcloud
     % sample_pts: points to calculate descriptors at
-    % min_points: minimum number of points in sphere
-    % R: Radius of sphere
-    % thVar: two element vector that contains the two thresholds for the
-    % eigenvalues of the covariance matrix (sphere-reject)
+    % options.min_pts: minimum number of points in sphere
+    % options.R: Radius of sphere
+    % options.thVar: two element vector that contains the two thresholds for the
+        % eigenvalues of the covariance matrix (sphere-reject)
+    % options.ALIGN_POINTS: use local reference frame?
+    % options.CENTER: center to centroid before calculating descriptor?
+    % options.k: k nearest neighbors used for alignment
     
     % returns:
         % - feat: feature locations
         % - desc: feature descriptors
         
+    % unpack options
+    min_pts = options.min_pts;
+    max_pts = options.max_pts;
+    R = options.R;
+    thVar = options.thVar;
+    K = options.k;
+    ALIGN_POINTS = options.ALIGN_POINTS;
+    CENTER = options.CENTER;
+    
        
     % preallocate space for features and descriptors, even though we don't
     % know their length
@@ -126,5 +138,23 @@ function [feat, desc, ang] = getMomentDescriptors(pts, sample_pts, min_pts, max_
     mask = find(~isnan(desc(:, 1))); % row indices of filled rows
     desc = desc(mask, :);
     feat = feat(mask, :);
+    
+    % apply weight by moment to descriptor
+    weights.M1 = 0.2; % 0.2
+    weights.M2 = 0.75; % 0.75
+    weights.M3 = 0.38; % 0.38
+    weights.M4 = 0.54; % 0.54
+
+    desc = applyMomentWeight(desc, weights);
+    
     toc
+end
+
+%% helper function that applies weight to descriptor
+function descW = applyMomentWeight(desc, weights)
+    descW = desc;
+    descW(:, 1:6) = desc(:, 1:6)*weights.M1;
+    descW(:, 7:12) = desc(:, 7:12)*weights.M2;
+    descW(:, 13:22) = desc(:, 13:22)*weights.M3;
+    descW(:, 23:31) = desc(:, 23:31)*weights.M4;
 end

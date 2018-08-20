@@ -1,5 +1,5 @@
 %% function to calculate a descriptor for each point
-function [feat, desc] = getRotationalDescriptors(pts, sample_pts, min_pts, R)
+function [feat, desc] = getRotationalDescriptors(pts, sample_pts, options)
     % pts: points in pointcloud
     % sample_pts: points to calculate descriptors at
     % min_points: minimum number of points in sphere
@@ -10,6 +10,9 @@ function [feat, desc] = getRotationalDescriptors(pts, sample_pts, min_pts, R)
     % returns:
         % - feat: feature locations
         % - desc: feature descriptors
+        
+    min_pts = options.min_pts;
+    R = options.R;
 
     % determine phases to be used for standing wave descriptor
     phases = 0:pi/2:pi*4;    

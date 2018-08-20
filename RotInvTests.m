@@ -11,7 +11,7 @@ pc = pcread('teapot.ply');
 pts = pc.Location;
 %c = [3.3, 0, 2.4]; % support region center
 c = [2, -0.5, 1]; % support region center
-R = 1; % support radius
+descOpt.R = 1; % support radius
 
 pts_rel = pts - c; % relative to center
 dists = vecnorm(pts_rel, 2, 2);
@@ -21,7 +21,7 @@ mask = cat(2, mask, mask, mask);
 pts_sphere = reshape(pts_rel(mask), [], 3);    
 
 % now create N random rotations of the points
-D = 31;
+D = 980;
 N = 30;
 points = cell(N, 1);
 
@@ -32,17 +32,19 @@ for i = 1:N
     points{i} = pts_rot;
 end
 
-min_pts = 30;
+descOpt.min_pts = 30;
+descOpt.max_pts = inf;
 sample_pts = [0, 0, 0]; % points are already local
-thVar = [1, 1];
-ALIGN = true;
-CENTER = false;
+descOpt.thVar = [1, 1];
+descOpt.k = 'all';
+descOpt.ALIGN_POINTS = true;
+descOpt.CENTER = false;
 
 % get descriptors
 descriptors = zeros(N, D);
 for i = 1:N
     pts_rot = points{i};
-    [feat, desc] = getMomentDescriptors(pts_rot, sample_pts, min_pts, R, thVar, ALIGN, CENTER, 'all');
+    [feat, desc] = getSpacialHistogramDescriptors(pts_rot, sample_pts, descOpt);
     descriptors(i, :) = desc;
 end
 
@@ -81,8 +83,8 @@ ALIGN = true;
 CENTER = false;
 k = 'all';
 
-[featSurface, descSurface] = getMomentDescriptors(ptsSurface, sample_ptsSurface, min_pts, R, thVar, ALIGN, CENTER, k);
-[featSurface_rot, descSurface_rot] = getMomentDescriptors(ptsSurface_rot, sample_ptsSurface_rot, min_pts, R, thVar, ALIGN, CENTER, k);
+[featSurface, descSurface] = getMomentDescriptors(ptsSurface, sample_ptsSurface, min_pts, max_pts,  R, thVar, ALIGN, CENTER, k);
+[featSurface_rot, descSurface_rot] = getMomentDescriptors(ptsSurface_rot, sample_ptsSurface_rot, min_pts, max_pts, R, thVar, ALIGN, CENTER, k);
 
 % apply weights
 weights.M1 = 0; % 0
