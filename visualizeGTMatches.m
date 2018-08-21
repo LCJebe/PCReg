@@ -44,10 +44,9 @@ clear local_ptsS local_ptsM
 num_samples = size(sample_pts ,1);
 num_valid = size(valid_pts, 1);
 perc_valid = double(num_valid) / num_samples * 100;
-msg = sprintf('Sampled %d points, %d are valid (%0.2f %%)', ...
+fprintf('Sampled %d points, %d are valid (%0.2f %%)\n', ...
    num_samples, num_valid, perc_valid);
 
-disp(msg);
 
 %% now the fun part: visualize ground truth matches
 

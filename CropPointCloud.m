@@ -1,12 +1,15 @@
 clear all
 close all
 
+% options
+RAND_CROP = false;
+
 %% read pointcloud
 path = 'Data/PointClouds/';
-pcModel = pcread(strcat(path, 'ModelSmoothColor.pcd'));
+pcModel = pcread(strcat(path, 'ModelSmoothColorUp3.pcd'));
 
 % load limits of aligned surface for crop-reference!
-pcSurface = pcread(strcat(path, 'Surface_DS4_alignedM.pcd'));
+pcSurface = pcread(strcat(path, 'Surface_DS3_alignedM.pcd'));
 xLimS = pcSurface.XLimits;
 yLimS = pcSurface.YLimits;
 zLimS = pcSurface.ZLimits;
@@ -18,8 +21,16 @@ zLimS = pcSurface.ZLimits;
 % ylabel('Y');
 % zlabel('Z');
 
-%% specify limits in [mm]
+% for bad crop only: shift point cloud by xShift
 margin = 3.5;
+if RAND_CROP
+    xShift = (pcSurface.XLimits(2) - pcSurface.XLimits(1)) + margin;
+    T = eye(4);
+    T(4, 1) = xShift;
+    pcModel = pctransform(pcModel, affine3d(T));
+end
+
+%% specify limits in [mm]
 xLim = xLimS + [-margin, margin];
 yLim = yLimS + [-margin, margin];
 zLim = zLimS + [-margin, margin];
@@ -44,4 +55,4 @@ pcCrop = pointCloud(pts_crop, 'Color', colors_crop);
 % zlabel('Z');
 
 %% save the crop
-pcwrite(pcCrop, 'Data/PointClouds/GoodCropSmooth_large.pcd');
+pcwrite(pcCrop, 'Data/PointClouds/RandCropSmoothUp3_large.pcd');

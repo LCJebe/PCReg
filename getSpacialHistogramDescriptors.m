@@ -24,20 +24,34 @@ function [feat, desc] = getSpacialHistogramDescriptors(pts, sample_pts, options)
     CENTER = options.CENTER;
         
     % more internal options
-    NORMALIZE = false; % should be true unless point density is similar
-        
+    NORMALIZE = false; % should be true unless point density is similar        
         
     % define histogram layout (bins) in spherical coordinates
     % it should be NUM_PHI = 2*NUM_THETA
     NUM_R = 10; % 10
     NUM_THETA = 7; % 7
     NUM_PHI = 14; % 14
+    
+    % in a first step, throw out keypoints that don't fullfill the
+    % min_points and max_points constraints
+    tic
+    valid_mask = false(size(sample_pts, 1), 1);
+    parfor i = 1:size(sample_pts, 1)
+        c = sample_pts(i, :);
+        [~, dists] = getLocalPoints(pts, R, c, min_pts, max_pts);
+        if ~isempty(dists)
+            valid_mask(i) = 1;
+        end
+    end
+    
+    % retain only valid sample_pts
+    valid_mask = cat(2, valid_mask, valid_mask, valid_mask);
+    sample_pts = reshape(sample_pts(valid_mask), [], 3);
        
     % preallocate space for features and descriptors    
     desc = nan(size(sample_pts, 1), NUM_R * NUM_PHI * NUM_THETA);
     feat = nan(size(sample_pts, 1), 3);
     
-    tic
     parfor i = 1:size(sample_pts, 1) % PARFOR
         c = sample_pts(i, :);
         
@@ -124,8 +138,6 @@ function [feat, desc] = getSpacialHistogramDescriptors(pts, sample_pts, options)
             feat(i, :) = c;
         end
     end
-
-
     
     % remove nan rows from desc and feat and return
     mask = find(~isnan(desc(:, 1))); % row indices of filled rows

@@ -236,7 +236,7 @@ elseif strcmp(METHOD, 'DENSE')
     % 3D model x/y sampling is 0.195mm
     % here, one pixel corresponds approximately to avg(depth) / focallength
     z_mean = mean(z(find(~isnan(z))));
-    downscale =  round(0.195 / (z_mean / FL(1)) / 2); % in [mm]
+    downscale =  round(0.195 / (z_mean / FL(1)) / (2*sqrt(2))); % in [mm]
     z_down = z(1:downscale:end, 1:downscale:end);
     l_rect_crop_down = l_rect_crop(1:downscale:end, 1:downscale:end, :);
 

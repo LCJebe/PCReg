@@ -10,11 +10,12 @@ close all
 % 'UNIFORM_SAME' for the same regular grid on all point clouds
 % 'RANDOM_POINTS' for random points in point cloud
 % 'RANDOM_UNIFORM' for random uniformly distributed points
+% 'RANDOM_UNIFORM_SPHERICAL' for random uniform points in sphere defined by center and radius
 % 'ALL' for all points in point cloud
-sampling_method = 'RANDOM_UNIFORM';
+sampling_method = 'RANDOM_UNIFORM_SPHERICAL';
 
 % if 'UNIFORM' or 'UNIFORM_SAME' or 'RANDOM_UNIFORM' specify density of sphere-grid
-d = 0.3; % 0.4, spacing of spheres along each axis (0.3 is better, 0.2 takes forever)
+d = 0.4; % 0.4, spacing of spheres along each axis (0.3 is better, 0.2 takes forever)
 
 % margin: samples outside the box can be useful (should be equal to or > R)
 margin = 3.5;
@@ -24,26 +25,30 @@ sample_frac = 0.2;
 
 %% READ in aligned surface and model crop
 path = 'Data/PointClouds/';
-pcSurface = pcread(strcat(path, 'Surface_DS2_alignedM.pcd'));
-pcModel = pcread(strcat(path, 'GoodCropSmoothUp3_large.pcd'));
-pcRand = pcread(strcat(path, 'RandCropSmoothUp3.pcd'));
+pcSurface = pcread(strcat(path, 'Surface_DS3_alignedM.pcd'));
+pcModel = pcread(strcat(path, 'GoodCropSpherical_smallest.pcd'));
+pcRand = pcread(strcat(path, 'RandCropSmoothUp3_large.pcd'));
 
 % recommended: center point clouds
 SHIFT = false; % 'true' destroys alignment, if aligned
 
 % turn off to omit matching with random crop
-RAND_CROP = false;
+RAND_CROP = true;
 
+% transform surface manually (good to check RANSAC)
+MANUAL_TF = false;
+RotS = [pi/6, -pi/3, pi/2];
+transS = [13, 25, -17];
+
+if MANUAL_TF
+    pcSurface = pcRigidBodyTF(pcSurface, RotS, transS);
+end
 if SHIFT
     pcSurface = centerPointCloud(pcSurface);
     pcModel = centerPointCloud(pcModel);
     pcRand = centerPointCloud(pcRand);
 end
 
-% DEBUG: manually align now REMOVE for normal experiments!!!
-%load('Tform_align2.mat');
-%pcSurface = pctransform(pcSurface, affine3d(Tform_align2));
-%pcSurface = centerPointCloud(pcSurface);
 
 %% define locations of spheres for local descriptors
 if strcmp(sampling_method, 'UNIFORM_SAME')
@@ -76,6 +81,13 @@ elseif strcmp(sampling_method, 'RANDOM_UNIFORM')
     sample_ptsSurface = pcRandomUniformSamples(pcSurface, d, margin);
     sample_ptsModel = pcRandomUniformSamples(pcModel, d, -margin);
     sample_ptsRand = pcRandomUniformSamples(pcRand, d, -margin);
+    
+elseif strcmp(sampling_method, 'RANDOM_UNIFORM_SPHERICAL')    
+    % sample just like random uniform for the surface
+    sample_ptsSurface = pcRandomUniformSamples(pcSurface, d, margin);
+    % but sample spherical for the good and bad crop
+    sample_ptsModel = pcRandomUniformSphericalSamples(pcModel, d, -margin);
+    sample_ptsRand = pcRandomUniformSphericalSamples(pcRand, d, -margin);
     
 elseif strcmp(sampling_method, 'RANDOM_POINTS')    
     sample_ptsSurface = pcRandomPoints(pcSurface, sample_frac);
@@ -148,14 +160,14 @@ elseif strcmp(descriptor, 'Rotational')
     [featSurface, descSurface] = ...
         getRotationalDescriptors(ptsSurface, sample_ptsSurface, descOpt);
 elseif strcmp(descriptor, 'Histogram')    
+    [featSurface, descSurface] = ...
+        getSpacialHistogramDescriptors(ptsSurface, sample_ptsSurface, descOpt);   
     [featModel, descModel] = ...
         getSpacialHistogramDescriptors(ptsModel, sample_ptsModel, descOpt);
     if RAND_CROP
         [featRand, descRand] = ...
             getSpacialHistogramDescriptors(ptsRand, sample_ptsRand, descOpt);
-    end
-    [featSurface, descSurface] = ...
-        getSpacialHistogramDescriptors(ptsSurface, sample_ptsSurface, descOpt);        
+    end     
 else
     error('Descriptor method must be either Moment or Rotational');
 end
@@ -177,7 +189,7 @@ metric_factor = 0.45; % 0.4 / 0.45
 MAHALANOBIS = false;
 
 % Matching Algorithm Parameters
-par.Method = 'Approximate'; % 'Exhaustive' (default) or 'Approximate'
+par.Method = 'Exhaustive'; % 'Exhaustive' (default) or 'Approximate'
 par.MatchThreshold = 10; % 1.0 (default) Percent Value (0 - 100) for distance-reject
 par.MaxRatio = 0.98; % 0.6 (default) nearest neighbor ambiguity rejection
 par.Metric =  'SAD'; % SSD (default) for L2, SAD for L1
@@ -348,6 +360,42 @@ function sample_pts = pcRandomUniformSamples(pcIn, d, margin)
     sample_pts = sample_pts .* [rangeX, rangeY, rangeZ];
     sample_pts = sample_pts + ...
         [pcIn.XLimits(1), pcIn.YLimits(1), pcIn.ZLimits(1)] - margin;
+end
+
+%% helper function: random-uniformly sample point cloud
+function sample_pts = pcRandomUniformSphericalSamples(pcIn, d, margin)
+
+    if margin > 0
+        error('Margin is expected to be < 0 for this implementation of spherical sampling');
+    end
+
+    % calculate num_pts to sample based on size of pointcloud and d
+    rangeX = pcIn.XLimits(2) - pcIn.XLimits(1);
+    rangeY = pcIn.YLimits(2) - pcIn.YLimits(1);
+    rangeZ = pcIn.ZLimits(2) - pcIn.ZLimits(1);
+    num_pts = round((rangeX * rangeY * rangeZ) / (d^3));
+          
+    % sample enough random uniformly distributed numbers in range [0, 1]
+    sample_pts = rand(num_pts, 3); 
+    
+    % scale numbers so that they fit into the correct range, without using
+    % margin yet
+    sample_pts = sample_pts .* [rangeX, rangeY, rangeZ];
+    sample_pts = sample_pts + ...
+        [pcIn.XLimits(1), pcIn.YLimits(1), pcIn.ZLimits(1)];
+    
+    % now get center and only use points that are within "reach"
+    center = [(pcIn.XLimits(2) + pcIn.XLimits(1))/2, ...
+              (pcIn.YLimits(2) + pcIn.YLimits(1))/2, ...
+              (pcIn.ZLimits(2) + pcIn.ZLimits(1))/2];
+          
+    pts_rel = sample_pts - center;
+    dists = vecnorm(pts_rel, 2, 2);
+    mask = dists < (norm([rangeX, rangeY, rangeZ]/2 + margin)); % note that margin < 0
+    
+    % based on the mask, return the relevant sample points
+    mask = cat(2, mask, mask, mask);
+    sample_pts = reshape(sample_pts(mask), [], 3);  
 end
 
 %% helper function: select random points from point cloud

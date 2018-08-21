@@ -23,7 +23,7 @@ function [pts_sphere, dists] = getLocalPoints(pts, R, c, min_points, max_points)
         pts_rel = pts_cube - c;
         dists = vecnorm(pts_rel, 2, 2);
         mask = dists < R;
-        dists = dists(find(mask));
+        dists = dists(mask);
         mask = cat(2, mask, mask, mask);
         pts_sphere = reshape(pts_rel(mask), [], 3);    
         

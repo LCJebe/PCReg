@@ -2,8 +2,8 @@
 close all
 
 % options. If choisng RANSAC, then it's INLIERS_ONLY always!
-RANSAC = false;
-INLIERS_ONLY = true; % false means: no inliers, only wrong matches. 
+RANSAC = true;
+INLIERS_ONLY = false; % false means: no inliers, only wrong matches. 
 MAX_MATCHES = 40;
 ALIGN = true;
 
@@ -60,7 +60,15 @@ for i = 1:num_matches
     end
     
     % get distance between coords (used to determine inliers)
-    coord_dist = norm(coordSurface - coordModel);
+    % transform Surface first, if using RANSAC
+    if RANSAC
+        coordModel_aligned = [coordModel, 1]*T;
+        coordModel_aligned = coordModel_aligned(1:3);
+        coord_dist = norm(coordSurface - coordModel_aligned);
+    else
+        coord_dist = norm(coordSurface - coordModel);
+    end
+
     
     % get local points for each support region
     ptsMatchSurface = getLocalPoints(ptsSurface, descOpt.R, coordSurface, descOpt.min_pts, descOpt.max_pts);
@@ -110,9 +118,11 @@ for i = 1:num_matches
         if row == 1; title('Model'); end
         subplot(4, 4, 4*row-1);
         pcshow(ptsMatchSurface_aligned, 'MarkerSize', 50);
+        xlabel(sprintf('%d pts', size(ptsMatchSurface_aligned, 1)));
         if row == 1; title('Surface aligned'); end
         subplot(4, 4, 4*row);
         pcshow(ptsMatchModel_aligned, 'MarkerSize', 50);
+        xlabel(sprintf('%d pts', size(ptsMatchModel_aligned, 1)));
         if row == 1; title('Model aligned'); end
     end
 end
