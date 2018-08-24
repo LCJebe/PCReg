@@ -12,7 +12,7 @@ close all
 % R = len(diag(cuboid)) + 3.5 (descriptor radius)
 
 % options
-RAND_CROP = false;
+RAND_CROP = true;
 
 %% read pointcloud
 path = 'Data/PointClouds/';
@@ -41,20 +41,21 @@ diagSurface = norm([xLimS(2) - xLimS(1), ...
 % ylabel('Y');
 % zlabel('Z');
 
+%% specify final crop radius
+%R_crop = diagSurface/2 + 3.5; % diagSurface/2 + 3.5 for "ideal" crop
+%(16.5mm)
+%R_crop = diagSurface/2; % smaller
+R_crop = diagSurface/2 - 3.5; % smallest
+
+
 % for bad crop only: shift point cloud by xShift TODOOOOOO!! (unfinished)
 margin = 3.5;
 if RAND_CROP
-    xShift = (pcSurface.XLimits(2) - pcSurface.XLimits(1)) + margin;
+    xShift = diagSurface/2 + R_crop;
     T = eye(4);
     T(4, 1) = xShift;
     pcModel = pctransform(pcModel, affine3d(T));
 end
-
-%% specify final crop radius
-%R_crop = diagSurface/2 + 3.5; % diagSurface/2 + 3.5 for "ideal" crop
-%(16.5mm)
-% R_crop = diagSurface/2; % smaller
-R_crop = diagSurface/2 - 3.5; % smallest
 
 %% create spherical crop of pointcloud
 pts = pcModel.Location;
@@ -77,4 +78,4 @@ ylabel('Y');
 zlabel('Z');
 
 %% save the crop
-pcwrite(pcCrop, 'Data/PointClouds/GoodCropSpherical_smallest.pcd');
+pcwrite(pcCrop, 'Data/PointClouds/RandCropSpherical_smallest.pcd');

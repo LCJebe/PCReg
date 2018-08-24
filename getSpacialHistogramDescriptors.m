@@ -24,7 +24,9 @@ function [feat, desc] = getSpacialHistogramDescriptors(pts, sample_pts, options)
     CENTER = options.CENTER;
         
     % more internal options
-    NORMALIZE = false; % should be true unless point density is similar        
+    NORMALIZE = false; % should be true unless point density is similar    
+    ALIGN_v2 = true; % use new method for alignment to see if it performs better. 
+    r = 2.5; % radius for align_v2.
         
     % define histogram layout (bins) in spherical coordinates
     % it should be NUM_PHI = 2*NUM_THETA
@@ -63,17 +65,38 @@ function [feat, desc] = getSpacialHistogramDescriptors(pts, sample_pts, options)
             
             % ---- rejection based on PCA variances (== eigenvalues of
             % covariance matrix!!) of k nearest neighbors  
-            if strcmp(K, 'all')
+            if strcmp(K, 'all') || K == 1
                 k = num_points;
             else
-                k = K;
+                k = round(num_points*K);
                 % sort points by distance to center for KNN
                 [~, I] = sort(dists);
                 pts_local = pts_local(I, :);
             end
             pts_k = pts_local(1:k, :);
             if ~(sum(thVar == 1) == 2) || ALIGN_POINTS
-                [coeff, pts_lrf, variances] = pca(pts_k, 'Algorithm', 'eig');
+                % use old alignment method
+                if ~ALIGN_v2
+                    %[coeff, pts_lrf, variances] = pca(pts_k, 'Algorithm', 'eig', 'Centered', false);
+                    
+                    [coeff, pts_lrf, variances] = pca(pts_k, 'Algorithm', 'eig');
+                % use new method for alignment
+                else 
+                    % --- 1) find median (L1) / mean (L2)
+                    centroid = mean(pts_k, 1);
+
+                    % --- 2) get local neighborhood around this point with radius r and
+                    % make sure there is at least a bare minimum of points included
+                    [pts_rel, ~] = getLocalPoints(pts_k, r, centroid, 250, inf);
+
+                    if isempty(pts_rel)
+                        continue
+                    else
+                        % --- 3) use those points for alignment (get transform)
+                        %[coeff, pts_lrf, variances] = pca(pts_rel, 'Algorithm', 'eig', 'Centered', false); 
+                        [coeff, pts_lrf, variances] = pca(pts_rel, 'Algorithm', 'eig'); 
+                    end
+                end
                 
                 % continue if constraints are not met
                 if (variances(1) / variances(2) < thVar(1)) || ...
@@ -101,17 +124,15 @@ function [feat, desc] = getSpacialHistogramDescriptors(pts, sample_pts, options)
                 coeff_unambig = coeff .* [x_sign, y_sign, z_sign];
                 
                 % transform all points into the new coordinate system
-                pts_local = pts_local*coeff_unambig;
+                if CENTER
+                    pts_local = (pts_local - mean(pts_local, 1))*coeff_unambig;
+                else
+                    pts_local = pts_local*coeff_unambig;
+                end
             end
             
             % ---- calculate the descriptor
-            % center to mean/median point coordinates
-            M1_L1 = mean(pts_local, 1);
-            if CENTER
-                pts_local = pts_local - M1_L1;
-                c = c - M1_L1;
-            end
-            
+           
             % transform points into spherical coordinates
             r_spheric = vecnorm(pts_local, 2, 2);
             theta_spheric = acos(pts_local(:, 3) ./ r_spheric);

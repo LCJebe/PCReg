@@ -3,7 +3,8 @@ close all
 
 %% TODOs
 % - implement better keypoint detector?
-% - organize code
+% - organize code (almost done)
+% - modularize code more!! (e.g. much redundancy in visualizeGTMatches)
 
 %% define method for sampling points (keypoint detection)
 % 'UNIFORM' for regular grid (uniform sampling)
@@ -15,7 +16,7 @@ close all
 sampling_method = 'RANDOM_UNIFORM_SPHERICAL';
 
 % if 'UNIFORM' or 'UNIFORM_SAME' or 'RANDOM_UNIFORM' specify density of sphere-grid
-d = 0.4; % 0.4, spacing of spheres along each axis (0.3 is better, 0.2 takes forever)
+d = 0.3; % 0.4, spacing of spheres along each axis (0.3 is better, 0.2 takes forever)
 
 % margin: samples outside the box can be useful (should be equal to or > R)
 margin = 3.5;
@@ -26,8 +27,8 @@ sample_frac = 0.2;
 %% READ in aligned surface and model crop
 path = 'Data/PointClouds/';
 pcSurface = pcread(strcat(path, 'Surface_DS3_alignedM.pcd'));
-pcModel = pcread(strcat(path, 'GoodCropSpherical_smallest.pcd'));
-pcRand = pcread(strcat(path, 'RandCropSmoothUp3_large.pcd'));
+pcModel = pcread(strcat(path, 'GoodCropSpherical_smaller.pcd'));
+pcRand = pcread(strcat(path, 'RandCropSpherical_smaller.pcd'));
 
 % recommended: center point clouds
 SHIFT = false; % 'true' destroys alignment, if aligned
@@ -131,9 +132,9 @@ descOpt.R = 3.5; % 1.5 / 2.5 / 3.5
 descOpt.thVar = [3, 1.5]; % [1.5, 1.5] / [4, 2] 
 
 % specify number of nearest neighbors (KNN) to use for local reference
-% frame. Number should be <= min_points, or write 'all'
-% if k is 'all', then points need not be sorted - faster. 
-descOpt.k = 'all';
+% frame. Number should be a fraction between (0, 1], or write 'all'
+% if k is 'all' (same as 1), then points need not be sorted - faster. 
+descOpt.k = 0.85;
 
 % get points from pointclouds
 ptsModel = pcModel.Location;
@@ -174,7 +175,7 @@ end
 
 
 %% descriptor weighting, normalization, and matching options
-
+tic
 % optional: un-normalize descriptors before matching
 UNNORMALIZE = true;
 norm_factor = 2; % 2
@@ -189,7 +190,7 @@ metric_factor = 0.45; % 0.4 / 0.45
 MAHALANOBIS = false;
 
 % Matching Algorithm Parameters
-par.Method = 'Exhaustive'; % 'Exhaustive' (default) or 'Approximate'
+par.Method = 'Approximate'; % 'Exhaustive' (default) or 'Approximate'
 par.MatchThreshold = 10; % 1.0 (default) Percent Value (0 - 100) for distance-reject
 par.MaxRatio = 0.98; % 0.6 (default) nearest neighbor ambiguity rejection
 par.Metric =  'SAD'; % SSD (default) for L2, SAD for L1
@@ -225,7 +226,7 @@ end
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 if CHANGE_METRIC
     descSurfaceC = descSurfaceN.^metric_factor;
-    descModelC = descModelN.^metric_factor;
+    descModelC = descModelN.^metric_factor;    
     if RAND_CROP
         descRandC = descRandN.^metric_factor;
     end
@@ -321,7 +322,7 @@ if RAND_CROP
     d2 = vecnorm(loc2M - loc2S, 2, 2);
     inliers2 = length(find(d2 <= maxDist));
 end
-
+toc
 %% helper function: center PC (0,0) in middle of crop
 function pc_out = centerPointCloud(pc)
     % translation of pointcloud
@@ -391,7 +392,7 @@ function sample_pts = pcRandomUniformSphericalSamples(pcIn, d, margin)
           
     pts_rel = sample_pts - center;
     dists = vecnorm(pts_rel, 2, 2);
-    mask = dists < (norm([rangeX, rangeY, rangeZ]/2 + margin)); % note that margin < 0
+    mask = dists < (rangeX/2 + margin); % note that margin < 0
     
     % based on the mask, return the relevant sample points
     mask = cat(2, mask, mask, mask);

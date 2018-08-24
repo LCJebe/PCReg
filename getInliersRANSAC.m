@@ -9,8 +9,8 @@ pts2 = loc1S; % Surface
 %% set RANSAC Parameters
 
 coeff.minPtNum = 3;
-coeff.iterNum = 8e4;
-coeff.thDist = 1.0;
+coeff.iterNum = 4e4;
+coeff.thDist = 0.5;
 coeff.thInlrRatio = 0.1;
 
 %% Perform RANSAC with rigid transform T and distance function

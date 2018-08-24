@@ -3,7 +3,7 @@ close all
 
 % options. If choisng RANSAC, then it's INLIERS_ONLY always!
 RANSAC = true;
-INLIERS_ONLY = false; % false means: no inliers, only wrong matches. 
+INLIERS_ONLY = true; % false means: no inliers, only wrong matches. 
 MAX_MATCHES = 40;
 ALIGN = true;
 
@@ -61,7 +61,8 @@ for i = 1:num_matches
     
     % get distance between coords (used to determine inliers)
     % transform Surface first, if using RANSAC
-    if RANSAC
+    TF = true;
+    if RANSAC && TF
         coordModel_aligned = [coordModel, 1]*T;
         coordModel_aligned = coordModel_aligned(1:3);
         coord_dist = norm(coordSurface - coordModel_aligned);
