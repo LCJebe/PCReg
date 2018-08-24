@@ -105,8 +105,8 @@ BIVARIATE = false;
 
 binlim_counts = [0, 1.5e4];
 binlim_dists = [1.5, 3.5];
-binlim_var1 = [0, 5];
-binlim_var2 = [0, 5];
+binlim_var1 = [1, 5];
+binlim_var2 = [1, 5];
 
 
 % Surface
