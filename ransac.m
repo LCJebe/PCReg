@@ -1,4 +1,4 @@
-function [T, inlierIdx] = ransac( pts1,pts2,ransacCoef,funcFindTransf,funcDist, REFINE)
+function [T, varargout] = ransac( pts1,pts2,ransacCoef,funcFindTransf,funcDist, REFINE)
     %[T, inlierIdx] = ransac1( pts1,pts2,ransacCoef,funcFindTransf,funcDist )
     %	Use RANdom SAmple Consensus to find a fit from PTS1 to PTS2.
     %	PTS1 is M*n matrix including n points with dim M, PTS2 is N*n;
@@ -17,7 +17,8 @@ function [T, inlierIdx] = ransac( pts1,pts2,ransacCoef,funcFindTransf,funcDist, 
     %	FUNCDIST is a func handle, d = funcDist(f,x1,y1)
     %	It uses f returned by FUNCFINDF, and return the distance
     %	between f and the points, d is 1*n1.
-
+    
+    nout = max(nargout, 1);
 
     minPtNum = ransacCoef.minPtNum;
     iterNum = ransacCoef.iterNum;
@@ -65,20 +66,42 @@ function [T, inlierIdx] = ransac( pts1,pts2,ransacCoef,funcFindTransf,funcDist, 
     end
     
     T = TForms{idx};
+    FAILED = false;
     try
         dist = funcDist(T,pts1,pts2);
     catch
-        error('RANSAC could not find an appropriate transformation');
+        % error('RANSAC could not find an appropriate transformation');
+        FAILED = true;
+        T = [];
+        inlierIdx = [];
+        numSuccess = 0;
+        maxInliers = 0;
     end
     
-    inlierIdx = find(dist < thDist);
-    
-    if REFINE
-        numSuccess = sum(inlrNum_refined >= thInlr);
-    else
-        numSuccess = sum(inlrNum >= thInlr);
+    if ~FAILED
+        inlierIdx = find(dist < thDist);
+
+        if REFINE
+            numSuccess = sum(inlrNum_refined >= thInlr);
+        else
+            numSuccess = sum(inlrNum >= thInlr);
+        end
+
+        fprintf('RANSAC succeeded %d times with a maximum of %d Inliers (%0.2f %%)\n', numSuccess, maxInliers, 100*maxInliers/ptNum);
     end
-    
-    fprintf('RANSAC succeeded %d times with a maximum of %d Inliers (%0.2f %%)\n', numSuccess, maxInliers, 100*maxInliers/ptNum);
 	
+    % outputs        
+    if nout > 1
+        varargout{1} = inlierIdx;
+    end
+    if nout > 2
+        varargout{2} = numSuccess;
+    end 
+    if nout > 3
+        varargout{3} = maxInliers;
+    end 
+    if nout > 4
+        varargout{4} = 100*maxInliers/ptNum;
+    end 
+    
 end

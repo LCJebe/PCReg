@@ -2,7 +2,7 @@
 close all
 
 % options. If choisng RANSAC, then it's INLIERS_ONLY always!
-RANSAC = true;
+RANSAC = false;
 INLIERS_ONLY = true; % false means: no inliers, only wrong matches. 
 MAX_MATCHES = 40;
 ALIGN = true;
@@ -29,7 +29,7 @@ end
 num_matches = min([num_matches, MAX_MATCHES]);
 
 % for better display: generate the 8 points that span the cube defined by R
-add_pts = descOpt.R*[-1,-1,-1;...
+add_pts = descOptM.R*[-1,-1,-1;...
                      -1,-1, 1;...
                      -1, 1,-1;...
                      -1, 1, 1;...
@@ -72,13 +72,13 @@ for i = 1:num_matches
 
     
     % get local points for each support region
-    ptsMatchSurface = getLocalPoints(ptsSurface, descOpt.R, coordSurface, descOpt.min_pts, descOpt.max_pts);
-    ptsMatchModel = getLocalPoints(ptsModel, descOpt.R, coordModel, descOpt.min_pts, descOpt.max_pts);
+    ptsMatchSurface = getLocalPoints(ptsSurface, descOptS.R, coordSurface, descOptS.min_pts, descOptS.max_pts);
+    ptsMatchModel = getLocalPoints(ptsModel, descOptM.R, coordModel, descOptM.min_pts, descOptM.max_pts);
     
     % optional: align to local reference frame
     if ALIGN
-        [ptsMatchSurface_aligned, ~] = AlignPoints(ptsMatchSurface);
-        [ptsMatchModel_aligned, ~] = AlignPoints(ptsMatchModel);
+        [ptsMatchSurface_aligned, ~] = AlignPoints_KNN_v2(ptsMatchSurface);
+        [ptsMatchModel_aligned, ~] = AlignPoints_KNN_v2(ptsMatchModel);
     end
     
     % add frame points for display

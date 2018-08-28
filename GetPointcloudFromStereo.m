@@ -6,6 +6,9 @@ r = imread('Data/Stereo/Nah2/02_R.tif');
 
 %% Define METHOD
 % either 'SPARSE' or 'DENSE'
+% 'SPARSE' Method useds keypoint detection and matching to obtain a
+% depthmap
+% 'DENSE' Method uses Block matching provided my MATLAB. Recommended. 
 METHOD = 'DENSE';
 
 %% Define Camera Parameters and Information
@@ -203,7 +206,13 @@ if strcmp(METHOD,'SPARSE')
 
     ptCloud = pointCloud([x', y', z']);
     
+    
+%% Do the DENSE depthmap calculation
 elseif strcmp(METHOD, 'DENSE')
+    
+    % define Range in which we look for disparity. This takes some tuning,
+    % but in the future the process should be automeated (or we should make
+    % an educated guess)
     disparityRange = round([-75, 50]/16)*16;
     
     lg = im2single(rgb2gray(l_rect_crop));
@@ -213,13 +222,49 @@ elseif strcmp(METHOD, 'DENSE')
     lg_eq = histeq(lg,255);
     rg_eq = histeq(rg, 255);
     
+    % get disparity Map
     disp = disparity(lg_eq, rg_eq, ...
-        'BlockSize', 15, ...
-        'ContrastThreshold', 0.5, ...
-        'UniquenessThreshold', 15, ...
-        'DisparityRange',disparityRange);
+                        'BlockSize',            15, ...
+                        'ContrastThreshold',    0.5, ...
+                        'UniquenessThreshold',  15, ...
+                        'DisparityRange',       disparityRange);
+                    
+    % remove the edge values of the disparity range
+    disp(disp>=disparityRange(2)-1) = -realmax('single');
+    disp(disp<=disparityRange(1)) = -realmax('single');
+    
+    % Use some median filtering on the depthmap to smoothen more
+    disp_filt = medfilt2(disp, [1, 1]);
+    
+    % remove tiny regions surrounded by much different values 
+    % as they might be incorrect
+    margin = 1;
+    pixel_thresh = 1000;
+    levels = disparityRange(1):0.5:disparityRange(2);
+    complete_map = zeros(size(disp_filt));
+    for i = 1:length(levels)
+        l = levels(i);
+        % get binary map
+        bin_map = (disp_filt >=l-margin) & (disp_filt <= l+margin);
+        CC = bwconncomp(bin_map);
+        % remove components that are too small (< pixel_thresh)
+        numPixels = cellfun(@numel,CC.PixelIdxList);
+        idx = find(numPixels < pixel_thresh);
+        for j = 1:length(idx)
+            bin_map(CC.PixelIdxList{idx(j)}) = 0;
+        end
+        % add valid regions to overall map using logical OR
+        complete_map = complete_map | bin_map;
+    end
+    
+    % apply mask to disparity map
+    complete_map = single(complete_map);
+    complete_map(~complete_map) = nan;
+    disp = complete_map.*disp_filt;
+                    
+    % display disparity map
     figure();
-    imshow(disp,disparityRange);
+    imshow(disp_filt,disparityRange);
     title('Disparity Map from crop');
     colormap(gca,jet) 
     colorbar

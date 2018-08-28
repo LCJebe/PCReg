@@ -1,3 +1,15 @@
+%% GetSphericalDescriptors
+% This script performs a registration experiment between a query and two
+% crops from the CT-Model, one of which matches with the query. First,
+% keypoints are sampled based on certain criteria. Then, points within a
+% local neighborhood of each detected keypoint are aligned to a local
+% reference frame using PCA. Afterwards, a descriptor is calculated for
+% each keypoint. The descriptors between query and model are matched, both
+% for the "correct" and the "incorrect" crop of the model. If the query and
+% the correct crop were aligned manually before, then the number of inliers
+% can be checked easily. Otherwise, it is neccessary to run RANSAC to
+% determine inliers, which is performed by the script getInliersRANSCAC.m
+
 clear all
 close all
 
@@ -7,7 +19,7 @@ close all
 % - modularize code more!! (e.g. much redundancy in visualizeGTMatches)
 
 %% define method for sampling points (keypoint detection)
-% 'UNIFORM' for regular grid (uniform sampling)
+% 'UNIFORM' for a regular grid (uniform sampling) for each pointcloud
 % 'UNIFORM_SAME' for the same regular grid on all point clouds
 % 'RANDOM_POINTS' for random points in point cloud
 % 'RANDOM_UNIFORM' for random uniformly distributed points
@@ -26,19 +38,19 @@ sample_frac = 0.2;
 
 %% READ in aligned surface and model crop
 path = 'Data/PointClouds/';
-pcSurface = pcread(strcat(path, 'Surface_DS3_alignedM.pcd'));
+pcSurface = pcread(strcat(path, 'SurfaceNew_DS3_alignedM.pcd'));
 pcModel = pcread(strcat(path, 'GoodCropSpherical_smaller.pcd'));
 pcRand = pcread(strcat(path, 'RandCropSpherical_smaller.pcd'));
 
 % recommended: center point clouds
-SHIFT = false; % 'true' destroys alignment, if aligned
+SHIFT = true; % 'true' destroys alignment, if aligned
 
 % turn off to omit matching with random crop
 RAND_CROP = true;
 
 % transform surface manually (good to check RANSAC)
-MANUAL_TF = false;
-RotS = [pi/6, -pi/3, pi/2];
+MANUAL_TF = true;
+RotS = rand(1, 3)*2*pi;
 transS = [13, 25, -17];
 
 if MANUAL_TF
@@ -113,28 +125,31 @@ end
 descriptor = 'Histogram';
 
 % if descriptor is 'Moment' optionally align to a local reference frame
-descOpt.ALIGN_POINTS = true;
+descOptM.ALIGN_POINTS = true;
 
 % optional: don't use first moment and center by this instead
-descOpt.CENTER = false;
+descOptM.CENTER = false;
 
 % specify minimum number of points that has to be in sphere
-descOpt.min_pts = 500; % 51 / 101 / 500
+descOptM.min_pts = 500; % 51 / 101 / 500
 
 % specify maximum number of points that can be in sphere
-descOpt.max_pts = 8000; % inf / 3*min_pts / 8*min_pts
+descOptM.max_pts = 6000; % inf / 3*min_pts / 8*min_pts
 
 % specify radius of spheres (local descriptor neighborhood)
-descOpt.R = 3.5; % 1.5 / 2.5 / 3.5
+descOptM.R = 3.5; % 1.5 / 2.5 / 3.5
 
 % specify the reject threshold for eccentricity (covar-eigenvalues), value
 % must be >= 1 
-descOpt.thVar = [3, 1.5]; % [1.5, 1.5] / [4, 2] 
+descOptM.thVar = [3, 1.5]; % [1.5, 1.5] / [4, 2] 
 
 % specify number of nearest neighbors (KNN) to use for local reference
 % frame. Number should be a fraction between (0, 1], or write 'all'
 % if k is 'all' (same as 1), then points need not be sorted - faster. 
-descOpt.k = 0.85;
+descOptM.k = 0.85;
+
+% different Options for Model and Surface, optionally
+descOptS = descOptM;
 
 % get points from pointclouds
 ptsModel = pcModel.Location;
@@ -144,33 +159,33 @@ ptsSurface = pcSurface.Location;
 % calculate the descriptos with the specified method
 if strcmp(descriptor, 'Moment')    
     [featModel, descModel, angModel] = ...
-            getMomentDescriptors(ptsModel, sample_ptsModel, descOpt);
+            getMomentDescriptors(ptsModel, sample_ptsModel, descOptM);
     if RAND_CROP
         [featRand, descRand, angRand] = ...
-            getMomentDescriptors(ptsRand, sample_ptsRand, descOpt);
+            getMomentDescriptors(ptsRand, sample_ptsRand, descOptM);
     end
     [featSurface, descSurface, angSurface] = ...
-        getMomentDescriptors(ptsSurface, sample_ptsSurface, descOpt);        
+        getMomentDescriptors(ptsSurface, sample_ptsSurface, descOptS);        
 elseif strcmp(descriptor, 'Rotational')    
     [featModel, descModel] =  ...
-        getRotationalDescriptors(ptsModel, sample_ptsModel, descOpt);
+        getRotationalDescriptors(ptsModel, sample_ptsModel, descOptM);
     if RAND_CROP
         [featRand, descRand] = ...
-            getRotationalDescriptors(ptsRand, sample_ptsRand, descOpt);
+            getRotationalDescriptors(ptsRand, sample_ptsRand, descOptM);
     end
     [featSurface, descSurface] = ...
-        getRotationalDescriptors(ptsSurface, sample_ptsSurface, descOpt);
+        getRotationalDescriptors(ptsSurface, sample_ptsSurface, descOptS);
 elseif strcmp(descriptor, 'Histogram')    
     [featSurface, descSurface] = ...
-        getSpacialHistogramDescriptors(ptsSurface, sample_ptsSurface, descOpt);   
+        getSpacialHistogramDescriptors(ptsSurface, sample_ptsSurface, descOptS);   
     [featModel, descModel] = ...
-        getSpacialHistogramDescriptors(ptsModel, sample_ptsModel, descOpt);
+        getSpacialHistogramDescriptors(ptsModel, sample_ptsModel, descOptM);
     if RAND_CROP
         [featRand, descRand] = ...
-            getSpacialHistogramDescriptors(ptsRand, sample_ptsRand, descOpt);
+            getSpacialHistogramDescriptors(ptsRand, sample_ptsRand, descOptM);
     end     
 else
-    error('Descriptor method must be either Moment or Rotational');
+    error('Descriptor method must be either Moment, Rotational, or Histogram');
 end
 
 
@@ -183,7 +198,7 @@ norm_factor = 2; % 2
 % optional: raise descriptors to power to change L1 distance metric
 % use only with L1-distance
 CHANGE_METRIC = true;
-metric_factor = 0.45; % 0.4 / 0.45
+metric_factor = 0.6; % 0.45 / 0.6
 
 % mahalanobis distance? Similar to L2. Don't combine with the
 % change metric!
@@ -192,7 +207,7 @@ MAHALANOBIS = false;
 % Matching Algorithm Parameters
 par.Method = 'Approximate'; % 'Exhaustive' (default) or 'Approximate'
 par.MatchThreshold = 10; % 1.0 (default) Percent Value (0 - 100) for distance-reject
-par.MaxRatio = 0.98; % 0.6 (default) nearest neighbor ambiguity rejection
+par.MaxRatio = 0.99; % 0.6 (default) nearest neighbor ambiguity rejection
 par.Metric =  'SAD'; % SSD (default) for L2, SAD for L1
 par.Unique = true; % true: 1-to-1 mapping only, else set false (default)
 

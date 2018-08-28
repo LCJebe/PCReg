@@ -58,7 +58,7 @@ function [feat, desc] = getSpacialHistogramDescriptors(pts, sample_pts, options)
         c = sample_pts(i, :);
         
         % return local points
-        [pts_local, dists] = getLocalPoints(pts, R, c, min_pts, max_pts);
+        [pts_local, ~] = getLocalPoints(pts, R, c, min_pts, max_pts);
         
         if ~ isempty(pts_local) 
             num_points = size(pts_local, 1);
@@ -69,7 +69,9 @@ function [feat, desc] = getSpacialHistogramDescriptors(pts, sample_pts, options)
                 k = num_points;
             else
                 k = round(num_points*K);
-                % sort points by distance to center for KNN
+                % sort points by distance to centroid for KNN
+                centroid = mean(pts_local, 1);
+                dists = vecnorm(pts_local - centroid, 2, 2);
                 [~, I] = sort(dists);
                 pts_local = pts_local(I, :);
             end
@@ -106,7 +108,7 @@ function [feat, desc] = getSpacialHistogramDescriptors(pts, sample_pts, options)
             end
 
             % ---- use sign disambiguition method for aligned points
-            
+            k = size(pts_lrf, 1);
             % count number of points with positive sign and see if they
             % dominate ( k nearest neighbors)
             if ALIGN_POINTS

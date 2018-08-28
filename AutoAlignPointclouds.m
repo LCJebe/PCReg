@@ -5,7 +5,7 @@
 
 pts = pcModel.Location;
 color = pcModel.Color;
-pts_tform = [pts, ones(size(pts, 1), 1)] * T;
+pts_tform = [pts, ones(size(pts, 1), 1)]/T;
 
 pcModel_aligend = pointCloud(pts_tform(:, 1:3), 'Color', color);
 

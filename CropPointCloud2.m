@@ -48,7 +48,7 @@ diagSurface = norm([xLimS(2) - xLimS(1), ...
 R_crop = diagSurface/2 - 3.5; % smallest
 
 
-% for bad crop only: shift point cloud by xShift TODOOOOOO!! (unfinished)
+% for bad crop only: shift point cloud by xShift
 margin = 3.5;
 if RAND_CROP
     xShift = diagSurface/2 + R_crop;

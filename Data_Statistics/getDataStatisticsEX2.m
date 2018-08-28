@@ -1,7 +1,19 @@
-%% run getSphericalDescriptors first to obtain putative matches
+%% run getSphericalDescriptors.m first to obtain putative matches
+
+%% getDataStatisticsEX1
+% All experiements in this series are designed to provide an insight into
+% the data. These insights are used to create a better keypoint detector. 
+% Statistics collected:
+% - Histogram of Number of Points in Support Region per Keypoint
+% - Variance Ratios that define the eccentricity of the support points
+% - Average distance from center of keypoints. 
+
+% Parameters for the detector can be changed here and effects on the
+% statistics can be observed. This experiment deals only with putative
+% matches and inlier matches, after descriptors have been calculated and
+% matched between query and crop using a standard matching algorithm. 
 
 addpath('../');
-
 
 
 %% Experiment 2: After matching: Putative matches & inlier matches
@@ -38,8 +50,8 @@ for i = 1:size(matches, 1)
     
     % given the feature location, get the local points that were used for this feature
     % points and distances
-    [pS, dS] = getLocalPoints(pcSurface.Location, descOpt.R, fS, 0, inf);
-    [pM, dM] = getLocalPoints(pcModel.Location, descOpt.R, fM, 0, inf);
+    [pS, dS] = getLocalPoints(pcSurface.Location, descOptS.R, fS, 0, inf);
+    [pM, dM] = getLocalPoints(pcModel.Location, descOptM.R, fM, 0, inf);
     
     %%%%%%%%%%%%%%%
     % collect statistics: Surface

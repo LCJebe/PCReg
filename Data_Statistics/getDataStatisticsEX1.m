@@ -1,3 +1,15 @@
+%% getDataStatisticsEX1
+% All experiements in this series are designed to provide an insight into
+% the data. These insights are used to create a better keypoint detector. 
+% Statistics collected:
+% - Histogram of Number of Points in Support Region per Keypoint
+% - Variance Ratios that define the eccentricity of the support points
+% - Average distance from center of keypoints. 
+
+% Parameters for the detector can be changed here and effects on the
+% statistics can be observed. This experiment deals with ALL detected
+% keypoints for both query and model, before matching is done
+
 addpath('../');
 
 %% load model and surface
@@ -21,9 +33,9 @@ sample_ptsSurface = pcRandomUniformSamples(pcSurface, d, marginSurface);
 sample_ptsModel = pcRandomUniformSamples(pcModel, d, marginModel);
 
 R = 3.5;
-min_pts = 200;
-max_pts = inf;
-thVar = [1, 1];
+min_pts = 500;
+max_pts = 8000;
+thVar = [3, 1.5];
 
 % Surface
 point_countsS = [];
