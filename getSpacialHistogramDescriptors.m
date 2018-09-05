@@ -87,8 +87,11 @@ function [feat, desc] = getSpacialHistogramDescriptors(pts, sample_pts, options)
                 % use old alignment method
                 if ~ALIGN_v2
                     %[coeff, pts_lrf, variances] = pca(pts_k, 'Algorithm', 'eig', 'Centered', false);
-                    
-                    [coeff, pts_lrf, variances] = pca(pts_k, 'Algorithm', 'eig');
+                    try
+                        [coeff, pts_lrf, variances] = pca(pts_k, 'Algorithm', 'eig');
+                    catch
+                        continue
+                    end
                 % use new method for alignment
                 else 
                     % --- 1) find median (L1) / mean (L2)

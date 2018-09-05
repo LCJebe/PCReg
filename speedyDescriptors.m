@@ -1,5 +1,5 @@
 %% function to calculate a descriptor for each point
-function [feat, desc] = speedyDescriptors(pts, spts, options)
+function [feat, desc] = speedyDescriptors(pts, sample_opts, options)
     % speedy implementation around getSpacialHistogramDescriptorsm.
     % using division into refions to speed up the calculation process
     
@@ -10,6 +10,8 @@ function [feat, desc] = speedyDescriptors(pts, spts, options)
     max_region_size = options.max_region_size;    
     VERBOSE = options.VERBOSE;
     options.VERBOSE = options.VERBOSE - 1;
+    
+    d = sample_opts.d;
     
     % divide Model into regions
     pc = pointCloud(pts);
@@ -41,7 +43,7 @@ function [feat, desc] = speedyDescriptors(pts, spts, options)
     tic
     for ix = 1:xyzNumRegions(1)
         for iy = 1:xyzNumRegions(2)
-            for iz = 1:xyzNumRegions(3)
+            for iz = 1:xyzNumRegions(3)                
                 % get points in the respective region with margin of descOptM.R = 3.5;
                 mask = pts(:, 1) > xBounds(ix)-R & pts(:, 1) < xBounds(ix+1)+R ...
                      & pts(:, 2) > yBounds(iy)-R & pts(:, 2) < yBounds(iy+1)+R...
@@ -49,12 +51,9 @@ function [feat, desc] = speedyDescriptors(pts, spts, options)
                 mask = cat(2, mask, mask, mask);
                 pts_crop = reshape(pts(mask), [], 3);    
 
-                % same for the sample points, but without the margin of R
-                mask = spts(:, 1) > xBounds(ix)-R & spts(:, 1) < xBounds(ix+1)+R ...
-                 & spts(:, 2) > yBounds(iy)-R & spts(:, 2) < yBounds(iy+1)+R...
-                 & spts(:, 3) > zBounds(iz)-R & spts(:, 3) < zBounds(iz+1)+R;
-                mask = cat(2, mask, mask, mask);
-                spts_crop = reshape(spts(mask), [], 3); 
+                % sample points in that region
+                pcCrop = pointCloud(pts_crop);
+                spts_crop = pcRandomUniformSamples(pcCrop, d, -R);
 
                 % use only those points for descriptor calculation
                 [feat_crop, desc_crop] = ...
@@ -78,4 +77,25 @@ function [feat, desc] = speedyDescriptors(pts, spts, options)
         fprintf('Calculated descriptors in %0.1f seconds...\n', toc);
     end
     close(waitbar_handle);
+end
+
+%% helper function: random-uniformly sample point cloud
+function sample_pts = pcRandomUniformSamples(pcIn, d, margin)
+    if pcIn.Count > 500
+        % calculate num_pts to sample based on size of pointcloud and d
+        rangeX = pcIn.XLimits(2) - pcIn.XLimits(1) + 2*margin;
+        rangeY = pcIn.YLimits(2) - pcIn.YLimits(1) + 2*margin;
+        rangeZ = pcIn.ZLimits(2) - pcIn.ZLimits(1) + 2*margin;
+        num_pts = round((rangeX * rangeY * rangeZ) / (d^3));
+
+        % sample enough random uniformly distributed numbers in range [0, 1]
+        sample_pts = rand(num_pts, 3); 
+
+        % scale numbers so that they fit into the correct range
+        sample_pts = sample_pts .* [rangeX, rangeY, rangeZ];
+        sample_pts = sample_pts + ...
+            [pcIn.XLimits(1), pcIn.YLimits(1), pcIn.ZLimits(1)] - margin;
+    else 
+        sample_pts = [];
+    end
 end

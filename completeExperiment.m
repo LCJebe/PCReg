@@ -16,28 +16,28 @@ pcModel = centerPointCloud(pcModel);
 
 %% get descriptors for surface and for the complete model
 dS = 0.3; % denser (0.2 or 0.3)
-dM = 0.4; % sparser (0.4 or more)
-margin = 3.5;
+sampleOptM.d = 0.4; % sparser (0.4 or more)
+sampleOptM.margin = 3.5; % should equal R
 
-sample_ptsSurface = pcRandomUniformSamples(pcSurface, dS, margin);
-sample_ptsModel = pcRandomUniformSamples(pcModel, dM, -margin);
+sample_ptsSurface = pcRandomUniformSamples(pcSurface, dS, sampleOptM.margin);
 
 % descriptor options
 descOptM.ALIGN_POINTS = true;
 descOptM.CENTER = false;
 descOptM.min_pts = 500;
 descOptM.max_pts = 6000;
-descOptM.R = 3.5;
+descOptM.R = 3.5; % should equal margin
 descOptM.thVar = [3, 1.5]; 
 descOptM.k = 0.85;
 descOptM.VERBOSE = 1;
-descOptM.max_region_size = 10;
+descOptM.max_region_size = 15;
 
 descOptS = descOptM;
 descOptS.max_region_size = 100;
 
+
 [featModel, descModel] = ...
-        speedyDescriptors(pcModel.Location, sample_ptsModel, descOptM);   
+        speedyDescriptors(pcModel.Location, sampleOptM, descOptM);   
 % save the features and descriptors to workspace
 save('featModel0.4.mat', 'featModel');
 save('descModel0.4.mat', 'descModel');
