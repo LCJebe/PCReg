@@ -106,7 +106,11 @@ function [feat, desc] = getSpacialHistogramDescriptors(pts, sample_pts, options)
                     else
                         % --- 3) use those points for alignment (get transform)
                         %[coeff, pts_lrf, variances] = pca(pts_rel, 'Algorithm', 'eig', 'Centered', false); 
-                        [coeff, pts_lrf, variances] = pca(pts_rel, 'Algorithm', 'eig'); 
+                        try
+                            [coeff, pts_lrf, variances] = pca(pts_rel, 'Algorithm', 'eig'); 
+                        catch
+                            continue
+                        end
                     end
                 end
                 

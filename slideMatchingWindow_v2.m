@@ -1,13 +1,11 @@
-%% slideMatchingWindow.m
+%% slideMatchingWindow_v2.m
 % experiment, where we slowly slide the crop from the ideal position
 % outwards with a ramdom angle, and record how well RANSAC performs with
 % different metrics (inlier percentage, num successes, num inliers)
+% DIFFERENCE TO v1:
+% this script uses pre-caluculated descriptors on the whole model
 
-%% read Model pointcloud
-path = 'Data/PointClouds/';
-pcModel = pcread(strcat(path, 'ModelSmoothColorUp3.pcd'));
-
-% load limits of aligned surface for crop-reference!
+%% load limits of aligned surface for crop-reference!
 pcSurface = pcread(strcat(path, 'SurfaceNew_DS3_alignedM.pcd'));
 xLimS = pcSurface.XLimits;
 yLimS = pcSurface.YLimits;
@@ -39,7 +37,12 @@ pcSurface = pcRigidBodyTF(pcSurface, RotS, transS);
 % shift pointcloud to center
 pcSurface = centerPointCloud(pcSurface);
 
-%% specify crop area
+%% load pre-calculated descriptors
+load('featModel0.4.mat');
+load('descModel0.4.mat');
+
+
+%% specify crop area, used to crop out descriptors by location
 R_crop = diagSurface/2; % "smaller"
 
 % now define a random direction of sliding
