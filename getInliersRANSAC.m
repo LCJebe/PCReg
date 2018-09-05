@@ -17,7 +17,7 @@ pts2 = loc1S; % Surface
 coeff.minPtNum = 3; 
 
 % number of iterations
-coeff.iterNum = 5e3; 
+coeff.iterNum = 2e4; 
 
 % distance (in world units) below which matches are considered inliers
 coeff.thDist = 0.5; 
@@ -36,8 +36,10 @@ toc
 
 T
 %% Use returend T to align pts1 (Model) with pts2 (Surface)
-pts1_aligned = [pts1, ones(size(pts1, 1), 1)] * T;
-pts1_aligned = pts1_aligned(:, 1:3);
+if ~isempty(T)
+    pts1_aligned = [pts1, ones(size(pts1, 1), 1)] * T;
+    pts1_aligned = pts1_aligned(:, 1:3);
+end
 
 
 %% function that calculates the distance between points after transform T

@@ -2,7 +2,7 @@
 close all
 
 % options. If choisng RANSAC, then it's INLIERS_ONLY always!
-RANSAC = false;
+RANSAC = true;
 INLIERS_ONLY = true; % false means: no inliers, only wrong matches. 
 MAX_MATCHES = 40;
 ALIGN = true;

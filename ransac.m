@@ -71,6 +71,7 @@ function [T, varargout] = ransac( pts1,pts2,ransacCoef,funcFindTransf,funcDist, 
         dist = funcDist(T,pts1,pts2);
     catch
         % error('RANSAC could not find an appropriate transformation');
+        fprintf('RANSAC could not find an appropriate transformation\n');
         FAILED = true;
         T = [];
         inlierIdx = [];

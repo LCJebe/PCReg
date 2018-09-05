@@ -22,6 +22,11 @@ function [feat, desc] = getSpacialHistogramDescriptors(pts, sample_pts, options)
     K = options.k;
     ALIGN_POINTS = options.ALIGN_POINTS;
     CENTER = options.CENTER;
+    if isfield(options, 'VERBOSE')
+        VERBOSE = options.VERBOSE;
+    else
+        VERBOSE = 1;
+    end
         
     % more internal options
     NORMALIZE = false; % should be true unless point density is similar    
@@ -36,7 +41,9 @@ function [feat, desc] = getSpacialHistogramDescriptors(pts, sample_pts, options)
     
     % in a first step, throw out keypoints that don't fullfill the
     % min_points and max_points constraints
-    tic
+    if VERBOSE
+        tic
+    end
     valid_mask = false(size(sample_pts, 1), 1);
     parfor i = 1:size(sample_pts, 1)
         c = sample_pts(i, :);
@@ -166,5 +173,7 @@ function [feat, desc] = getSpacialHistogramDescriptors(pts, sample_pts, options)
     mask = find(~isnan(desc(:, 1))); % row indices of filled rows
     desc = desc(mask, :);
     feat = feat(mask, :);
-    toc
+    if VERBOSE
+        fprintf('Calculated descriptors in %0.1f seconds...\n', toc);
+    end
 end

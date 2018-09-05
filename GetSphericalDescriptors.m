@@ -12,6 +12,7 @@
 
 clear all
 close all
+rng('shuffle');
 
 %% TODOs
 % - implement better keypoint detector?
@@ -28,7 +29,8 @@ close all
 sampling_method = 'RANDOM_UNIFORM_SPHERICAL';
 
 % if 'UNIFORM' or 'UNIFORM_SAME' or 'RANDOM_UNIFORM' specify density of sphere-grid
-d = 0.3; % 0.4, spacing of spheres along each axis (0.3 is better, 0.2 takes forever)
+dS = 0.2; % spacing of spheres along each axis 
+dM = 0.5; % time goes with (1/d)^3 keep that in mind
 
 % margin: samples outside the box can be useful (should be equal to or > R)
 margin = 3.5;
@@ -43,10 +45,10 @@ pcModel = pcread(strcat(path, 'GoodCropSpherical_smaller.pcd'));
 pcRand = pcread(strcat(path, 'RandCropSpherical_smaller.pcd'));
 
 % recommended: center point clouds
-SHIFT = true; % 'true' destroys alignment, if aligned
+SHIFT = false; % 'true' destroys alignment, if aligned
 
 % turn off to omit matching with random crop
-RAND_CROP = true;
+RAND_CROP = false;
 
 % transform surface manually (good to check RANSAC)
 MANUAL_TF = true;
@@ -89,7 +91,7 @@ elseif strcmp(sampling_method, 'UNIFORM')
     sample_ptsModel = pcUniformSamples(pcModel, d);
     sample_ptsRand = pcUniformSamples(pcRand, d);
     
-elseif strcmp(sampling_method, 'RANDOM_UNIFORM')    
+elseif strcmp(sampling_method, 'RANDOM_UNIFORM')
     % use margin for surface, but not for model
     sample_ptsSurface = pcRandomUniformSamples(pcSurface, d, margin);
     sample_ptsModel = pcRandomUniformSamples(pcModel, d, -margin);
@@ -337,7 +339,7 @@ if RAND_CROP
     d2 = vecnorm(loc2M - loc2S, 2, 2);
     inliers2 = length(find(d2 <= maxDist));
 end
-toc
+fprintf('Performed matching in %0.1f seconds...\n', toc);
 %% helper function: center PC (0,0) in middle of crop
 function pc_out = centerPointCloud(pc)
     % translation of pointcloud
