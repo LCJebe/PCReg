@@ -49,9 +49,9 @@ coeff.thDist = 0.1;
 coeff.thInlrRatio = 0.5; 
 
 %% run ransac to find correct transformation
-REFINE = true;
+coeff.REFINE = true;
 
-[T_est, inlierPtIdx] = ransac(pts,pts_tf,coeff,@estimateTransform,@calcDists, REFINE);
+[T_est, inlierPtIdx] = ransac(pts,pts_tf,coeff,@estimateTransform,@calcDists);
 
 
 %% function that calculates the distance between points after transform T

@@ -6,6 +6,7 @@
 % this script uses pre-caluculated descriptors on the whole model
 
 %% load limits of aligned surface for crop-reference!
+path = 'Data/PointClouds/';
 pcSurface = pcread(strcat(path, 'SurfaceNew_DS3_alignedM.pcd'));
 xLimS = pcSurface.XLimits;
 yLimS = pcSurface.YLimits;
@@ -38,9 +39,37 @@ pcSurface = pcRigidBodyTF(pcSurface, RotS, transS);
 pcSurface = centerPointCloud(pcSurface);
 
 %% load pre-calculated descriptors
-load('featModel0.4.mat');
-load('descModel0.4.mat');
+load('Data/Descriptors/featModel0.4.mat');
+load('Data/Descriptors/descModel0.4.mat');
 
+%% but calculate new descriptors from the Surface
+LOAD_SURFACE_DESCRIPTORS = true;
+if ~LOAD_SURFACE_DESCRIPTORS
+    dS = 0.3;
+    margin = 3.5;
+    sample_ptsSurface = pcRandomUniformSamples(pcSurface, dS, margin);
+
+    % descriptor options
+    descOptM.ALIGN_POINTS = true;
+    descOptM.CENTER = false;
+    descOptM.min_pts = 500;
+    descOptM.max_pts = 6000;
+    descOptM.R = 3.5;
+    descOptM.thVar = [3, 1.5]; 
+    descOptM.k = 0.85;
+
+    % get descriptors and locations
+    [featSurface, descSurface] = ...
+            getSpacialHistogramDescriptors(pcSurface.Location, sample_ptsSurface, descOptM);  
+        
+    % optional: save
+    save('Data/Descriptors/featSurface0.3.mat', 'featSurface');
+    save('Data/Descriptors/descSurface0.3.mat', 'descSurface');
+    
+else
+    load('Data/Descriptors/featSurface0.3.mat');
+    load('Data/Descriptors/descSurface0.3.mat'); 
+end
 
 %% specify crop area, used to crop out descriptors by location
 R_crop = diagSurface/2; % "smaller"
@@ -55,9 +84,14 @@ if LOAD_EXPERIMENT
     load('ratio_curve_mean.mat');
     load('ex.mat');
     start_ex = ex;
+else
+    start_ex = 1;
 end
 num_experiments = 10;
 for ex = start_ex:num_experiments+start_ex - 1
+    
+    fprintf('Running experiment %d...\n', ex);
+    
     rng('shuffle');
     theta = 2*pi*rand(1, 1);
     phi = acos(2*rand(1, 1)-1);
@@ -75,50 +109,20 @@ for ex = start_ex:num_experiments+start_ex - 1
     E = centerSurface + 3*R_crop*[x, y, z];
 
     % example for list of points P of size (N x 3)
-    P = pcModel.Location; % (N x 3)
+    P = featModel; % (N x 3)
     SE = E-S; % (1 x 3);
     PS = P-S; % (N x 3)
     dQS = (PS*SE')/(SE*SE'); % (N x 1)
     QS =  dQS.* SE; % (N x 3)
     d = vecnorm(QS, 2, 2); % (N x 1)
     mask = (d < norm(SE)) & (vecnorm(QS-PS, 2, 2) < R_crop) & (QS*SE' > 0); % mask for points inside crop region
-    mask = cat(2, mask, mask, mask);
-    pts_crop = reshape(P(mask), [], 3);  
-
-    color_crop = reshape(pcModel.Color(mask), [], 3);  
+    maskF = cat(2, mask, mask, mask);
+    featCrop = reshape(P(maskF), [], 3);
+    maskD = repmat(mask, 1, size(descModel, 2));
+    descCrop = reshape(descModel(maskD), [], size(descModel, 2));
 
     % show cropped region
     % pcshow(pointCloud(pts_crop, 'Color', color_crop));
-
-    %% now calculate descriotors on the cropped region 
-    pcModel = pointCloud(pts_crop);
-
-    % define steps between 0 and 1 which let the sphere slide from
-    % centerSurface (0, 0, 0) to centerOff = 2*R_crop*[x, y, z]
-
-    steps = 0:0.1:1;
-
-    % get sampling points for the model and the crop
-    dS = 0.3;
-    dM = 0.4;
-    margin = 3.5;
-    sample_ptsSurface = pcRandomUniformSamples(pcSurface, dS, margin);
-    sample_ptsModel = pcCylindricalSamples(pcModel, dM, margin, S, E, R_crop);
-
-    % descriptor options
-    descOptM.ALIGN_POINTS = true;
-    descOptM.CENTER = false;
-    descOptM.min_pts = 500;
-    descOptM.max_pts = 6000;
-    descOptM.R = 3.5;
-    descOptM.thVar = [3, 1.5]; 
-    descOptM.k = 0.85;
-
-    % get descriptors and locations
-    [featSurface, descSurface] = ...
-            getSpacialHistogramDescriptors(pcSurface.Location, sample_ptsSurface, descOptM);   
-    [featModel, descModel] = ...
-            getSpacialHistogramDescriptors(pcModel.Location, sample_ptsModel, descOptM);
 
     %% Now run the experiment 
     % define steps between 0 and 1 which let the sphere slide from
@@ -144,6 +148,7 @@ for ex = start_ex:num_experiments+start_ex - 1
     options.thDist = 0.5; 
     options.thInlrRatio = 0.1; 
     options.REFINE = true;
+    options.VERBOSE = 1cd ../..;
 
     % minimum number of putative matches
     min_matches = 50;
@@ -156,24 +161,25 @@ for ex = start_ex:num_experiments+start_ex - 1
 
     for i = 1:length(steps)
         step = steps(i);
+        % crop again to only the sphere that we're loking at
         current_center = centerSurface + step*(centerOff - centerSurface);
-        mask = getDescriptorIndices(featModel, current_center, R_crop, -3.5);
+        mask = getDescriptorIndices(featCrop, current_center, R_crop, -3.5);
 
         % based on the mask, return the relevant sample points and descriptors
         maskF = cat(2, mask, mask, mask);
-        featCur = reshape(featModel(maskF), [], 3);  
-        maskD = repmat(mask, 1, size(descModel, 2));
-        descCur = reshape(descModel(maskD), [], size(descModel, 2));
+        featCur = reshape(featCrop(maskF), [], 3);  
+        maskD = repmat(mask, 1, size(descCrop, 2));
+        descCur = reshape(descCrop(maskD), [], size(descCrop, 2));
 
         % now match with the specified region
         matchesModel = getMatches(descSurface, descCur, par);
-
+        
         % run RANSAC and return a few metrics
         pts1 = featSurface(matchesModel(:, 1), :);
         pts2 = featCur(matchesModel(:, 2), :);
         if size(pts1, 1) > min_matches
             [T, inlierPtIdx, numSuccess, maxInliers, maxInlierRatio] = ...
-                ransac(pts1,pts2,options,@estimateTransform,@calcDists, options.REFINE);
+                ransac(pts1,pts2,options,@estimateTransform,@calcDists);
         else
             [T, inlierPtIdx, numSuccess, maxInliers, maxInlierRatio] = deal(0);
         end
@@ -199,40 +205,43 @@ for ex = start_ex:num_experiments+start_ex - 1
     
     % save to workspace
     if ~mod(ex, 10)
-        save('putative_curve_mean.mat', 'putative_curve_mean');
-        save('success_curve_mean.mat', 'success_curve_mean');
-        save('inlier_curve_mean.mat', 'inlier_curve_mean');
-        save('ratio_curve_mean.mat', 'ratio_curve_mean');
-        save('ex.mat', 'ex');
+        save('slideMatchingWindowResults/Data/putative_curve_mean.mat', 'putative_curve_mean');
+        save('slideMatchingWindowResults/Data/success_curve_mean.mat', 'success_curve_mean');
+        save('slideMatchingWindowResults/Data/inlier_curve_mean.mat', 'inlier_curve_mean');
+        save('slideMatchingWindowResults/Data/ratio_curve_mean.mat', 'ratio_curve_mean');
+        save('slideMatchingWindowResults/Data/ex.mat', 'ex');
+        
+        fprintf('Saved intermediate results after example %d to folder\n', ex);
+        
     end
     
 end % for ex
 % save to workspace
-save('putative_curve_mean.mat', 'putative_curve_mean');
-save('success_curve_mean.mat', 'success_curve_mean');
-save('inlier_curve_mean.mat', 'inlier_curve_mean');
-save('ratio_curve_mean.mat', 'ratio_curve_mean');
-save('ex.mat', 'ex');
-
+save('slideMatchingWindowResults/Data/putative_curve_mean.mat', 'putative_curve_mean');
+save('slideMatchingWindowResults/Data/success_curve_mean.mat', 'success_curve_mean');
+save('slideMatchingWindowResults/Data/inlier_curve_mean.mat', 'inlier_curve_mean');
+save('slideMatchingWindowResults/Data/ratio_curve_mean.mat', 'ratio_curve_mean');
+save('slideMatchingWindowResults/Data/ex.mat', 'ex');
+fprintf('Saved final results after example %d to folder\n', ex);
 
 %% Plots
 close all;
 figtitle = sprintf('Theta: %0.5f, Phi: %0.5f', theta, phi);
 figure('Name', figtitle);
 subplot(4, 1, 1);
-plot(steps, putative_curve);
+plot(steps, putative_curve_mean);
 title('Putative Matches');
 grid;
 subplot(4, 1, 2);
-plot(steps, success_curve);
+plot(steps, success_curve_mean);
 title('Number of Successes');
 grid;
 subplot(4, 1, 3);
-plot(steps, inlier_curve);
+plot(steps, inlier_curve_mean);
 title('Number of Inliers');
 grid;
 subplot(4, 1, 4);
-plot(steps, ratio_curve);
+plot(steps, ratio_curve_mean);
 title('Ratio of Inliers');
 grid;
 

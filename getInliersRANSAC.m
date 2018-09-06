@@ -28,10 +28,10 @@ coeff.thInlrRatio = 0.1;
 
 %% Perform RANSAC with rigid transform T and distance function
 % REFINE: find the transformation again using all inliers, if successful
-REFINE = true;
+coeff.REFINE = true;
 
 tic
-[T, inlierPtIdx] = ransac(pts1,pts2,coeff,@estimateTransform,@calcDists, REFINE);
+[T, inlierPtIdx] = ransac(pts1,pts2,coeff,@estimateTransform,@calcDists);
 toc
 
 T

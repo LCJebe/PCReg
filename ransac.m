@@ -1,4 +1,4 @@
-function [T, varargout] = ransac( pts1,pts2,ransacCoef,funcFindTransf,funcDist, REFINE)
+function [T, varargout] = ransac( pts1,pts2,ransacCoef,funcFindTransf,funcDist)
     %[T, inlierIdx] = ransac1( pts1,pts2,ransacCoef,funcFindTransf,funcDist )
     %	Use RANdom SAmple Consensus to find a fit from PTS1 to PTS2.
     %	PTS1 is M*n matrix including n points with dim M, PTS2 is N*n;
@@ -26,6 +26,12 @@ function [T, varargout] = ransac( pts1,pts2,ransacCoef,funcFindTransf,funcDist, 
     thDist = ransacCoef.thDist;
     ptNum = size(pts1,1);
     thInlr = round(thInlrRatio*ptNum);
+    REFINE = ransacCoef.REFINE;
+    if isfield(ransacCoef, 'VERBOSE')
+        VERBOSE = ransacCoef.VERBOSE;
+    else
+        VERBOSE = 1;
+    end
 
     inlrNum = zeros(1,iterNum);
     inlrNum_refined = zeros(1,iterNum);
@@ -71,7 +77,9 @@ function [T, varargout] = ransac( pts1,pts2,ransacCoef,funcFindTransf,funcDist, 
         dist = funcDist(T,pts1,pts2);
     catch
         % error('RANSAC could not find an appropriate transformation');
-        fprintf('RANSAC could not find an appropriate transformation\n');
+        if VERBOSE
+            fprintf('RANSAC could not find an appropriate transformation\n');
+        end
         FAILED = true;
         T = [];
         inlierIdx = [];
@@ -87,8 +95,9 @@ function [T, varargout] = ransac( pts1,pts2,ransacCoef,funcFindTransf,funcDist, 
         else
             numSuccess = sum(inlrNum >= thInlr);
         end
-
-        fprintf('RANSAC succeeded %d times with a maximum of %d Inliers (%0.2f %%)\n', numSuccess, maxInliers, 100*maxInliers/ptNum);
+        if VERBOSE
+            fprintf('RANSAC succeeded %d times with a maximum of %d Inliers (%0.2f %%)\n', numSuccess, maxInliers, 100*maxInliers/ptNum);
+        end
     end
 	
     % outputs        

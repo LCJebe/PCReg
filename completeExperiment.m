@@ -7,12 +7,8 @@ rng('shuffle');
 
 %% read Model and Surface pointcloud
 path = 'Data/PointClouds/';
-pcModel = pcread(strcat(path, 'ModelSmoothColorUp3.pcd'));
+pcModel = pcread(strcat(path, 'ModelSmoothUp3.pcd'));
 pcSurface = pcread(strcat(path, 'SurfaceNew_DS3.pcd'));
-
-% shift pointclouds to center
-pcSurface = centerPointCloud(pcSurface);
-pcModel = centerPointCloud(pcModel);
 
 %% get descriptors for surface and for the complete model
 dS = 0.3; % denser (0.2 or 0.3)
@@ -39,8 +35,8 @@ descOptS.max_region_size = 100;
 [featModel, descModel] = ...
         speedyDescriptors(pcModel.Location, sampleOptM, descOptM);   
 % save the features and descriptors to workspace
-save('featModel0.4.mat', 'featModel');
-save('descModel0.4.mat', 'descModel');
+save('Data/Descriptors/featModel0.4.mat', 'featModel');
+save('Data/Descriptors/descModel0.4.mat', 'descModel');
 
 [featSurface, descSurface] = ...
         getSpacialHistogramDescriptors(pcSurface.Location, sample_ptsSurface, descOptS);   

@@ -2,6 +2,12 @@ function matches = getMatches(descSurface, descModel, par)
 % this function provides the matching functionality present in
 % GetSphericalDescriptors.m except for Mahalanobis Distance
 
+if isfield(par, 'VERBOSE')
+    VERBOSE = par.VERBOSE;
+else
+    VERBOSE = 1;
+end
+
 %% descriptor weighting, normalization, and matching options
 tic
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -48,6 +54,6 @@ matches = matchFeatures(descSurfaceC, descModelC, ...
         'MaxRatio', par.MaxRatio, ... 
         'Metric', par.Metric, ...
         'Unique', par.Unique); 
-if par.VERBOSE
+if VERBOSE
     fprintf('Calculated matches in %0.1f seconds...\n', toc);
 end
