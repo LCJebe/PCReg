@@ -2,45 +2,55 @@
 % experiment, where we slowly slide the crop from the ideal position
 % outwards with a ramdom angle, and record how well RANSAC performs with
 % different metrics (inlier percentage, num successes, num inliers)
-
 rng('shuffle');
+
+%% options
+% load descriptors from folder instead of calculating them again
+LOAD_DATA = true;
+
 
 %% read Model and Surface pointcloud
 path = 'Data/PointClouds/';
 pcModel = pcread(strcat(path, 'ModelSmoothUp3.pcd'));
 pcSurface = pcread(strcat(path, 'SurfaceNew_DS3.pcd'));
 
-%% get descriptors for surface and for the complete model
-dS = 0.3; % denser (0.2 or 0.3)
-sampleOptM.d = 0.4; % sparser (0.4 or more)
-sampleOptM.margin = 3.5; % should equal R
+if ~LOAD_DATA
+    %% get descriptors for surface and for the complete model
+    dS = 0.3; % denser (0.2 or 0.3)
+    sampleOptM.d = 0.4; % sparser (0.4 or more)
+    sampleOptM.margin = 3.5; % should equal R
 
-sample_ptsSurface = pcRandomUniformSamples(pcSurface, dS, sampleOptM.margin);
+    sample_ptsSurface = pcRandomUniformSamples(pcSurface, dS, sampleOptM.margin);
 
-% descriptor options
-descOptM.ALIGN_POINTS = true;
-descOptM.CENTER = false;
-descOptM.min_pts = 500;
-descOptM.max_pts = 6000;
-descOptM.R = 3.5; % should equal margin
-descOptM.thVar = [3, 1.5]; 
-descOptM.k = 0.85;
-descOptM.VERBOSE = 1;
-descOptM.max_region_size = 15;
+    % descriptor options
+    descOptM.ALIGN_POINTS = true;
+    descOptM.CENTER = false;
+    descOptM.min_pts = 500;
+    descOptM.max_pts = 6000;
+    descOptM.R = 3.5; % should equal margin
+    descOptM.thVar = [3, 1.5]; 
+    descOptM.k = 0.85;
+    descOptM.VERBOSE = 1;
+    descOptM.max_region_size = 15;
 
-descOptS = descOptM;
-descOptS.max_region_size = 100;
+    descOptS = descOptM;
+    descOptS.max_region_size = 100;
 
 
-[featModel, descModel] = ...
-        speedyDescriptors(pcModel.Location, sampleOptM, descOptM);   
-% save the features and descriptors to workspace
-save('Data/Descriptors/featModel0.4.mat', 'featModel');
-save('Data/Descriptors/descModel0.4.mat', 'descModel');
+    [featModel, descModel] = ...
+            speedyDescriptors(pcModel.Location, sampleOptM, descOptM);   
+    % save the features and descriptors to workspace
+    save('Data/Descriptors/featModel0.4.mat', 'featModel');
+    save('Data/Descriptors/descModel0.4.mat', 'descModel');
 
-[featSurface, descSurface] = ...
-        getSpacialHistogramDescriptors(pcSurface.Location, sample_ptsSurface, descOptS);   
-
+    [featSurface, descSurface] = ...
+            getSpacialHistogramDescriptors(pcSurface.Location, sample_ptsSurface, descOptS);   
+else
+    load('Data/Descriptors/featSurface0.3.mat');
+    load('Data/Descriptors/descSurface0.3.mat'); 
+    load('Data/Descriptors/featModel0.3.mat');
+    load('Data/Descriptors/descModel0.3.mat'); 
+end
     
 %% sliding sphere selection of descriptor locations
 % setup: get length of cuboid diagonal
@@ -65,13 +75,9 @@ pcDescModel = pointCloud(featModel);
 d_Spheres = 2;
 sample_ptsSpheres = pcUniformSamples(pcDescModel, d_Spheres);
 
-tic
-parpool()
-fprintf('Loaded parpool in %0.1f seconds...\n', toc);
-
 % first: check for valid spheres by number of descriptors in sphere
 tic
-min_pts = 50;
+min_pts = 200;
 max_pts = inf;
 valid_mask = false(size(sample_ptsSpheres, 1), 1);
 parfor i = 1:size(sample_ptsSpheres, 1)
@@ -81,7 +87,7 @@ parfor i = 1:size(sample_ptsSpheres, 1)
         valid_mask(i) = 1;
     end
 end
-fprintf('Obtained test positions in %0.1f seconds...\n', toc);
+fprintf('Obtained %d test positions in %0.1f seconds...\n', sum(valid_mask), toc);
 
 % retain only valid sample_pts
 valid_mask = cat(2, valid_mask, valid_mask, valid_mask);
@@ -103,16 +109,16 @@ par.Unique = true; % true: 1-to-1 mapping only, else set false (default)
 
 par.VERBOSE = 1;
 
-num_putative = zeros(size(sample_ptsSpheres, 1), 1);
+num_putative_all = zeros(size(sample_ptsSpheres, 1), 1);
 matchesCells = cell(size(sample_ptsSpheres, 1), 1);
 featureCells = cell(size(sample_ptsSpheres, 1), 1);
-locationCells = cell(size(sample_ptsSpheres, 1), 1);
+locationArray = nan(size(sample_ptsSpheres, 1), 3);
 
 tic
 num_spheres = size(sample_ptsSpheres, 1);
-fprintf('This will take about %d minutes...\n', round(num_spheres/4/60));
+fprintf('Getting Putative Matches for all spheres...\n');
+fprintf('This will take about %d x t minutes...\n', round(num_spheres/4/60));
 parfor i = 1:num_spheres
-    f = waitbar_handle;
     c = sample_ptsSpheres(i, :);
     
     % mask of descriptors that lie within sphere
@@ -128,26 +134,139 @@ parfor i = 1:num_spheres
     matchesModel = getMatches(descSurface, descCur, par);
     
     % save number of putative matches
-    num_putative(i) = size(matchesModel, 1);
+    num_putative_all(i) = size(matchesModel, 1);
     
     % if number of putative matches is above a certain threshold, also save
     % the matches and the corresponding feature locations
-    if num_putative(i) > 50
-        matchesCells{i} = matchesModel;
-        featureCells{i} = featCur;
-        locationCells{i} = c;
+    if num_putative_all(i) > 50
+        matchesCells{i} = matchesModel; % indices of matches
+        featureCells{i} = featCur; % locations of local features
+        locationArray(i, :) = c; % center of large sphere
     end
-    
 end
 
 % reduce the cell arrays to contain only non-empty cells
 matchesCells = matchesCells(~cellfun('isempty',matchesCells));
 featureCells = featureCells(~cellfun('isempty',featureCells));
-locationCells = locationCells(~cellfun('isempty',locationCells));
-fprintf('Matches to all positions in %0.1f seconds...\n', toc);
+locationArray = locationArray(~cellfun('isempty',featureCells), :);
+num_putative = num_putative_all(num_putative_all>50);
+fprintf('Matched to all positions in %0.1f seconds...\n', toc);
 
 %% perform RANSAC on spheres with a lot of putative matches
+putative_thresh = 150;
 
+% RANSAC options
+options.minPtNum = 3; 
+options.iterNum = 2e4; 
+options.thDist = 0.5; 
+options.thInlrRatio = 0.1; 
+options.REFINE = true;
+options.VERBOSE = 1;
+
+idx = find(num_putative>putative_thresh);
+num_trials = size(idx, 1);
+
+% prepare cells to contain trial cases only
+matchesCellsTrial = matchesCells(idx);
+featureCellsTrial = featureCells(idx);
+locationArrayTrial = locationArray(idx, :);
+
+% little print for timing
+fprintf('Performing RANSAC on all promising spheres...\n');
+fprintf('This will take about %d x t minutes...\n', round(num_trials/4/60));
+
+% statistics: numPutative, numSuccess, maxInliers, maxInlierRatio
+statsPutative = zeros(num_trials, 1);
+statsSuccess = zeros(num_trials, 1);
+statsInliers = zeros(num_trials, 1);
+statsRatio = zeros(num_trials, 1);
+
+parfor i = 1:num_trials
+    ind = idx(i);
+    
+    matches = matchesCellsTrial{i};
+    featuresM = featureCellsTrial{i};
+    pts1 = featSurface(matches(:, 1), :);
+    pts2 = featuresM(matches(:, 2), :);
+    
+    % sanity check
+    assert(num_putative(ind) == size(matches, 1));
+    
+    % RANSCAC
+    tic
+    [T, inlierPtIdx, numSuccess, maxInliers, maxInlierRatio] = ...
+                ransac(pts1,pts2,options,@estimateTransform,@calcDists);
+    toc
+           
+    % save statistics. needed to find out which sphere matches best
+    
+    statsPutative(i) = num_putative(ind);
+    statsSuccess(i) = numSuccess;
+    statsInliers(i) = maxInliers;
+    statsRatio(i) = maxInlierRatio;
+end
+
+%%% EVALUTATION %%%
+%% setup
+centerSurface = [34.8970   21.9820   25.4546];
+
+%% first experiment: all locations where RANSAC didn't fail
+% is there a region where we have many more non-fails?
+indices = find(statsSuccess > 0);
+goodLocations = locationArrayTrial(indices, :);
+goodLocations = [goodLocations; centerSurface];
+
+
+% show all points in black and the correct center in red
+color = ones(size(goodLocations, 1), 3) .* [0, 0, 0];
+color(end, :) = [255, 0, 0];
+pcshow(pointCloud(goodLocations, 'Color', color), 'MarkerSize', 50);
+
+
+%% second experiment: more selective. which points fulfill certain
+% thresholds for ALL statistics?
+thSucc = 1;
+thInliers = 0;
+thRatio = 0; % in percent
+
+mask = statsSuccess > thSucc & statsInliers > thInliers & statsRatio > thRatio;
+mask = repmat(mask, 1, 3);
+goodLocations = reshape(locationArray(mask), [], 3);
+goodLocations = [goodLocations; centerSurface];
+
+% show all points in black and the correct center in red
+color = ones(size(goodLocations, 1), 3) .* [0, 0, 0];
+color(end, :) = [255, 0, 0];
+pcshow(pointCloud(goodLocations, 'Color', color), 'MarkerSize', 50);
+
+%% third experiment
+% look at stats of the "correct" spheres
+c = centerSurface;
+indices = find(statsSuccess > 0);
+% get location and stats of only successful runs
+statsPutativeSU = statsPutative(indices);
+statsSuccessSU = statsSuccess(indices);
+statsInliersSU = statsInliers(indices);
+statsRatioSU = statsRatio(indices);
+goodL = locationArrayTrial(indices, :);
+
+% D is "radius" of cube
+D = 4;
+mask = goodL(:, 1) > c(1)-D & goodL(:, 1) < c(1)+D ...
+         & goodL(:, 2) > c(2)-D & goodL(:, 2) < c(2)+D ...
+         & goodL(:, 3) > c(3)-D & goodL(:, 3) < c(3)+D;     
+
+% indices of respective locations
+indices = find(mask);
+
+mask = cat(2, mask, mask, mask);
+goodLocations = reshape(goodL(mask), [], 3);    
+goodLocations = [goodLocations; centerSurface];
+
+% show all points in black and the correct center in red
+color = ones(size(goodLocations, 1), 3) .* [0, 0, 0];
+color(end, :) = [255, 0, 0];
+pcshow(pointCloud(goodLocations, 'Color', color), 'MarkerSize', 50);
 
 %% helper function: uniformly sample point cloud
 function sample_pts = pcUniformSamples(pcIn, d) 
@@ -177,21 +296,20 @@ function sample_pts = pcRandomUniformSamples(pcIn, d, margin)
         [pcIn.XLimits(1), pcIn.YLimits(1), pcIn.ZLimits(1)] - margin;
 end
 
-%% helper function: center PC (0,0) in middle of crop
-function pc_out = centerPointCloud(pc)
-    % translation of pointcloud
-    T = [(pc.XLimits(1) + pc.XLimits(2))/2, ...
-        (pc.YLimits(1) + pc.YLimits(2))/2, ...
-        (pc.ZLimits(1) + pc.ZLimits(2))/2];
-    A = eye(4);
-    A(4, 1:3) = -T;
-    tform = affine3d(A);
-    pc_out = pctransform(pc, tform);
-end
-
 %% helper function: descriptors within certain distance of given center point
 function mask = getDescriptorIndices(featModel, current_center, R_desc, margin)
     feat_rel = featModel - current_center;
     dists = vecnorm(feat_rel, 2, 2);
     mask = dists < (R_desc + margin); % note that margin < 0
+end
+
+%% function that calculates the distance between points after transform T
+% used as distance metric for RANSAC
+function d = calcDists(T,pts1,pts2)
+    %	Project PTS2 to PTS2_trans using the rigid transform T, then calcultate the distances between
+    %	PTS1 and PTS2_trans
+    pts2(:, 4) = 1;
+    pts2_trans = pts2*T;
+    pts2_trans = pts2_trans(:, 1:3);
+    d = sum((pts1-pts2_trans).^2,2);
 end

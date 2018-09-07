@@ -76,19 +76,19 @@ R_crop = diagSurface/2; % "smaller"
 
 % now define a random direction of sliding
 % optional: load experiment
-LOAD_EXPERIMENT = false;
+LOAD_EXPERIMENT = true;
 if LOAD_EXPERIMENT
-    load('putative_curve_mean.mat');
-    load('success_curve_mean.mat');
-    load('inlier_curve_mean.mat');
-    load('ratio_curve_mean.mat');
-    load('ex.mat');
+    load('slideMatchingWindowResults/Data/putative_curve_mean.mat');
+    load('slideMatchingWindowResults/Data/success_curve_mean.mat');
+    load('slideMatchingWindowResults/Data/inlier_curve_mean.mat');
+    load('slideMatchingWindowResults/Data/ratio_curve_mean.mat');
+    load('slideMatchingWindowResults/Data/ex.mat');
     start_ex = ex;
 else
     start_ex = 1;
 end
-num_experiments = 10;
-for ex = start_ex:num_experiments+start_ex - 1
+num_experiments = 100;
+for ex = start_ex+1:num_experiments+start_ex - 1
     
     fprintf('Running experiment %d...\n', ex);
     
@@ -148,7 +148,7 @@ for ex = start_ex:num_experiments+start_ex - 1
     options.thDist = 0.5; 
     options.thInlrRatio = 0.1; 
     options.REFINE = true;
-    options.VERBOSE = 1cd ../..;
+    options.VERBOSE = 1;
 
     % minimum number of putative matches
     min_matches = 50;
@@ -203,26 +203,15 @@ for ex = start_ex:num_experiments+start_ex - 1
         ratio_curve_mean = ratio_curve + 1/(ex+1)*(ratio_curve-ratio_curve_mean);
     end
     
-    % save to workspace
-    if ~mod(ex, 10)
         save('slideMatchingWindowResults/Data/putative_curve_mean.mat', 'putative_curve_mean');
         save('slideMatchingWindowResults/Data/success_curve_mean.mat', 'success_curve_mean');
         save('slideMatchingWindowResults/Data/inlier_curve_mean.mat', 'inlier_curve_mean');
         save('slideMatchingWindowResults/Data/ratio_curve_mean.mat', 'ratio_curve_mean');
         save('slideMatchingWindowResults/Data/ex.mat', 'ex');
         
-        fprintf('Saved intermediate results after example %d to folder\n', ex);
-        
-    end
-    
+        fprintf('Saved intermediate results after example %d to folder\n', ex); 
 end % for ex
-% save to workspace
-save('slideMatchingWindowResults/Data/putative_curve_mean.mat', 'putative_curve_mean');
-save('slideMatchingWindowResults/Data/success_curve_mean.mat', 'success_curve_mean');
-save('slideMatchingWindowResults/Data/inlier_curve_mean.mat', 'inlier_curve_mean');
-save('slideMatchingWindowResults/Data/ratio_curve_mean.mat', 'ratio_curve_mean');
-save('slideMatchingWindowResults/Data/ex.mat', 'ex');
-fprintf('Saved final results after example %d to folder\n', ex);
+
 
 %% Plots
 close all;
