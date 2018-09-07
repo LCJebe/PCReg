@@ -5,6 +5,11 @@
 % DIFFERENCE TO v1:
 % this script uses pre-caluculated descriptors on the whole model
 
+% which descriptor density should be used? Two different experiments '0.4'
+% and '0.3'
+descDensModel = '0.4';
+descDensSurface = '0.3';
+
 %% load limits of aligned surface for crop-reference!
 path = 'Data/PointClouds/';
 pcSurface = pcread(strcat(path, 'SurfaceNew_DS3_alignedM.pcd'));
@@ -38,11 +43,10 @@ pcSurface = pcRigidBodyTF(pcSurface, RotS, transS);
 % shift pointcloud to center
 pcSurface = centerPointCloud(pcSurface);
 
-%% load pre-calculated descriptors
-load('Data/Descriptors/featModel0.4.mat');
-load('Data/Descriptors/descModel0.4.mat');
 
-%% but calculate new descriptors from the Surface
+%% calculate new descriptors from the Surface or load from file
+descNameS = strcat('Data/Descriptors/descSurface', descDensSurface, '.mat');
+featNameS = strcat('Data/Descriptors/featSurface', descDensSurface, '.mat');
 LOAD_SURFACE_DESCRIPTORS = true;
 if ~LOAD_SURFACE_DESCRIPTORS
     dS = 0.3;
@@ -63,29 +67,41 @@ if ~LOAD_SURFACE_DESCRIPTORS
             getSpacialHistogramDescriptors(pcSurface.Location, sample_ptsSurface, descOptM);  
         
     % optional: save
-    save('Data/Descriptors/featSurface0.3.mat', 'featSurface');
-    save('Data/Descriptors/descSurface0.3.mat', 'descSurface');
+    save(featNameS, 'featSurface');
+    save(descNameS, 'descSurface');
     
 else
-    load('Data/Descriptors/featSurface0.3.mat');
-    load('Data/Descriptors/descSurface0.3.mat'); 
+    load(featNameS);
+    load(descNameS); 
 end
+
+%% load model descriptors and features
+descNameM = strcat('Data/Descriptors/descModel', descDensModel, '.mat');
+featNameM = strcat('Data/Descriptors/featModel', descDensModel, '.mat');
+load(featNameM);
+load(descNameM); 
 
 %% specify crop area, used to crop out descriptors by location
 R_crop = diagSurface/2; % "smaller"
 
 % now define a random direction of sliding
 % optional: load experiment
+putativeName = strcat('slideMatchingWindowResults/Data/putative_curve_mean', descDensModel, '.mat');
+successName = strcat('slideMatchingWindowResults/Data/success_curve_mean', descDensModel, '.mat');
+inlierName = strcat('slideMatchingWindowResults/Data/inlier_curve_mean', descDensModel, '.mat');
+ratioName = strcat('slideMatchingWindowResults/Data/ratio_curve_mean', descDensModel, '.mat');
+exName = strcat('slideMatchingWindowResults/Data/ex', descDensModel, '.mat');
+
 LOAD_EXPERIMENT = true;
-if LOAD_EXPERIMENT
-    load('slideMatchingWindowResults/Data/putative_curve_mean.mat');
-    load('slideMatchingWindowResults/Data/success_curve_mean.mat');
-    load('slideMatchingWindowResults/Data/inlier_curve_mean.mat');
-    load('slideMatchingWindowResults/Data/ratio_curve_mean.mat');
-    load('slideMatchingWindowResults/Data/ex.mat');
+if LOAD_EXPERIMENT && exist(exName, 'file')
+    load(putativeName);
+    load(successName);
+    load(inlierName);
+    load(ratioName);
+    load(exName);
     start_ex = ex;
 else
-    start_ex = 1;
+    start_ex = 0;
 end
 num_experiments = 100;
 for ex = start_ex+1:num_experiments+start_ex - 1
@@ -143,10 +159,10 @@ for ex = start_ex+1:num_experiments+start_ex - 1
     par.Unique = true; % true: 1-to-1 mapping only, else set false (default)
 
     % RANSAC options
-    options.minPtNum = 3; 
-    options.iterNum = 2e4; 
-    options.thDist = 0.5; 
-    options.thInlrRatio = 0.1; 
+    options.minPtNum = 3; % 3, always
+    options.iterNum = 2e4; % or more, doesn't hurt except timing
+    options.thDist = 0.2; % 0.5 for d'0.4', and 0.2 for 'd0.3'
+    options.thInlrRatio = 0.1; %0.1
     options.REFINE = true;
     options.VERBOSE = 1;
 
@@ -159,7 +175,7 @@ for ex = start_ex+1:num_experiments+start_ex - 1
     inlier_curve = zeros(length(steps), 1);
     ratio_curve = zeros(length(steps), 1);
 
-    for i = 1:length(steps)
+    parfor i = 1:length(steps)
         step = steps(i);
         % crop again to only the sphere that we're loking at
         current_center = centerSurface + step*(centerOff - centerSurface);
@@ -198,18 +214,18 @@ for ex = start_ex+1:num_experiments+start_ex - 1
         ratio_curve_mean = ratio_curve;
     else
         putative_curve_mean = putative_curve_mean + 1/(ex+1)*(putative_curve-putative_curve_mean);
-        success_curve_mean = success_curve + 1/(ex+1)*(success_curve-success_curve_mean);
-        inlier_curve_mean = inlier_curve + 1/(ex+1)*(inlier_curve-inlier_curve_mean);
-        ratio_curve_mean = ratio_curve + 1/(ex+1)*(ratio_curve-ratio_curve_mean);
+        success_curve_mean = success_curve_mean + 1/(ex+1)*(success_curve-success_curve_mean);
+        inlier_curve_mean = inlier_curve_mean + 1/(ex+1)*(inlier_curve-inlier_curve_mean);
+        ratio_curve_mean = ratio_curve_mean + 1/(ex+1)*(ratio_curve-ratio_curve_mean);
     end
-    
-        save('slideMatchingWindowResults/Data/putative_curve_mean.mat', 'putative_curve_mean');
-        save('slideMatchingWindowResults/Data/success_curve_mean.mat', 'success_curve_mean');
-        save('slideMatchingWindowResults/Data/inlier_curve_mean.mat', 'inlier_curve_mean');
-        save('slideMatchingWindowResults/Data/ratio_curve_mean.mat', 'ratio_curve_mean');
-        save('slideMatchingWindowResults/Data/ex.mat', 'ex');
         
-        fprintf('Saved intermediate results after example %d to folder\n', ex); 
+    save(putativeName, 'putative_curve_mean');
+    save(successName, 'success_curve_mean');
+    save(inlierName, 'inlier_curve_mean');
+    save(ratioName, 'ratio_curve_mean');
+    save(exName, 'ex');
+
+    fprintf('Saved intermediate results after example %d to folder\n', ex); 
 end % for ex
 
 

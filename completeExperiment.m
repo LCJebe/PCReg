@@ -118,33 +118,54 @@ tic
 num_spheres = size(sample_ptsSpheres, 1);
 fprintf('Getting Putative Matches for all spheres...\n');
 fprintf('This will take about %d x t minutes...\n', round(num_spheres/4/60));
-parfor i = 1:num_spheres
-    c = sample_ptsSpheres(i, :);
+
+% do some calculations before the parfor to avoid running out of memory
+portion_size = 16;
+num_portions = ceil(double(num_spheres)  / portion_size);
+for portion = 1:num_portions
+
+    i_start = 1+(portion-1)*portion_size;
     
-    % mask of descriptors that lie within sphere
-    mask = getDescriptorIndices(featModel, c, R_desc, 0);
+    featCur_portion = cell(portion_size, 1);
+    descCur_portion = cell(portion_size, 1);
+    
+    for i = i_start:i_start+portion_size-1 % counter through all spheres
+        ii = i - i_start + 1; % counter from 1 to portion_size
+        c = sample_ptsSpheres(i, :);
+
+        % mask of descriptors that lie within sphere
+        mask = getDescriptorIndices(featModel, c, R_desc, 0);
+
+        % based on the mask, return the relevant sample points and descriptors
+        maskF = cat(2, mask, mask, mask);
+        featCur = reshape(featModel(maskF), [], 3);  
+        maskD = repmat(mask, 1, size(descModel, 2));
+        descCur = reshape(descModel(maskD), [], size(descModel, 2));
         
-    % based on the mask, return the relevant sample points and descriptors
-    maskF = cat(2, mask, mask, mask);
-    featCur = reshape(featModel(maskF), [], 3);  
-    maskD = repmat(mask, 1, size(descModel, 2));
-    descCur = reshape(descModel(maskD), [], size(descModel, 2));
-    
-    % now match with the specified region
-    matchesModel = getMatches(descSurface, descCur, par);
-    
-    % save number of putative matches
-    num_putative_all(i) = size(matchesModel, 1);
-    
-    % if number of putative matches is above a certain threshold, also save
-    % the matches and the corresponding feature locations
-    if num_putative_all(i) > 50
-        matchesCells{i} = matchesModel; % indices of matches
-        featureCells{i} = featCur; % locations of local features
-        locationArray(i, :) = c; % center of large sphere
+        featCur_portion{ii} = featCur;
+        descCur_portion{ii} = descCur;
+    end
+
+    parfor i = i_start:i_start+portion_size-1
+        ii = i - i_start + 1;
+        descCur = descCur_portion{ii};
+        featCur = featCur_portion{ii};
+        
+        % now match with the specified region
+        matchesModel = getMatches(descSurface, descCur, par);
+
+        % save number of putative matches
+        num_putative_all(i) = size(matchesModel, 1);
+
+        % if number of putative matches is above a certain threshold, also save
+        % the matches and the corresponding feature locations
+        if num_putative_all(i) > 50
+            matchesCells{i} = matchesModel; % indices of matches
+            featureCells{i} = featCur; % locations of local features
+            locationArray(i, :) = c; % center of large sphere
+        end
     end
 end
-
 % reduce the cell arrays to contain only non-empty cells
 matchesCells = matchesCells(~cellfun('isempty',matchesCells));
 featureCells = featureCells(~cellfun('isempty',featureCells));
@@ -153,12 +174,12 @@ num_putative = num_putative_all(num_putative_all>50);
 fprintf('Matched to all positions in %0.1f seconds...\n', toc);
 
 %% perform RANSAC on spheres with a lot of putative matches
-putative_thresh = 150;
+putative_thresh = 225;
 
 % RANSAC options
 options.minPtNum = 3; 
-options.iterNum = 2e4; 
-options.thDist = 0.5; 
+options.iterNum = 3e4; 
+options.thDist = 0.2; 
 options.thInlrRatio = 0.1; 
 options.REFINE = true;
 options.VERBOSE = 1;

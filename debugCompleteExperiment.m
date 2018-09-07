@@ -24,7 +24,7 @@ par.Unique = true; % true: 1-to-1 mapping only, else set false (default)
 par.VERBOSE = 1;    
 
 % only one sphere around the center
-c = centerSurface + [1 -1 1];
+c = centerSurface + [0 0 0];
 
 % mask of descriptors that lie within sphere
 mask = getDescriptorIndices(featModel, c, R_desc, 0);
@@ -38,11 +38,13 @@ descCur = reshape(descModel(maskD), [], size(descModel, 2));
 % now match with the specified region
 matchesModel = getMatches(descSurface, descCur, par);
 
+fprintf('Found %d putative matches\n', size(matchesModel, 1));
+
 %% run ransac
 % RANSAC options
 options.minPtNum = 3; 
-options.iterNum = 2e4; 
-options.thDist = 0.3; 
+options.iterNum = 1e4; 
+options.thDist = 0.2; 
 options.thInlrRatio = 0.1; 
 options.REFINE = true;
 options.VERBOSE = 1;
