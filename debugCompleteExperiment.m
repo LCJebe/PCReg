@@ -26,35 +26,74 @@ par.VERBOSE = 1;
 % only one sphere around the center
 c = centerSurface + [0 0 0];
 
+good_samples = ...
+   [35.5690   21.7328   21.5702;
+   31.5690   21.7328   23.5702;
+   33.5690   19.7328   23.5702;
+   33.5690   21.7328   23.5702;
+   33.5690   23.7328   23.5702;
+   35.5690   19.7328   23.5702;
+   35.5690   21.7328   23.5702;
+   35.5690   23.7328   23.5702;
+   37.5690   19.7328   23.5702;
+   37.5690   21.7328   23.5702;
+   37.5690   23.7328   23.5702;
+   31.5690   21.7328   25.5702;
+   31.5690   23.7328   25.5702;
+   33.5690   19.7328   25.5702;
+   33.5690   21.7328   25.5702;
+   33.5690   23.7328   25.5702;
+   33.5690   25.7328   25.5702;
+   35.5690   19.7328   25.5702;
+   35.5690   21.7328   25.5702;
+   35.5690   23.7328   25.5702;
+   35.5690   25.7328   25.5702;
+   37.5690   19.7328   25.5702;
+   37.5690   21.7328   25.5702;
+   37.5690   23.7328   25.5702;
+   31.5690   21.7328   27.5702;
+   33.5690   19.7328   27.5702;
+   33.5690   21.7328   27.5702;
+   33.5690   23.7328   27.5702;
+   35.5690   19.7328   27.5702;
+   35.5690   21.7328   27.5702;
+   35.5690   23.7328   27.5702;
+   37.5690   21.7328   27.5702;
+   37.5690   23.7328   27.5702] + [4, 4, 4];
+
 % mask of descriptors that lie within sphere
-mask = getDescriptorIndices(featModel, c, R_desc, 0);
+for i = 1:size(good_samples, 1)
+    c = good_samples(i, :);
+    
+    mask = getDescriptorIndices(featModel, c, R_desc, 0);
 
-% based on the mask, return the relevant sample points and descriptors
-maskF = cat(2, mask, mask, mask);
-featCur = reshape(featModel(maskF), [], 3);  
-maskD = repmat(mask, 1, size(descModel, 2));
-descCur = reshape(descModel(maskD), [], size(descModel, 2));
+    % based on the mask, return the relevant sample points and descriptors
+    maskF = cat(2, mask, mask, mask);
+    featCur = reshape(featModel(maskF), [], 3);  
+    maskD = repmat(mask, 1, size(descModel, 2));
+    descCur = reshape(descModel(maskD), [], size(descModel, 2));
 
-% now match with the specified region
-matchesModel = getMatches(descSurface, descCur, par);
+    % now match with the specified region
+    matchesModel = getMatches(descSurface, descCur, par);
 
-fprintf('Found %d putative matches\n', size(matchesModel, 1));
+    fprintf('Found %d putative matches\n', size(matchesModel, 1));
 
-%% run ransac
-% RANSAC options
-options.minPtNum = 3; 
-options.iterNum = 1e4; 
-options.thDist = 0.2; 
-options.thInlrRatio = 0.1; 
-options.REFINE = true;
-options.VERBOSE = 1;
+    %% run ransac
+    % RANSAC options
+    options.minPtNum = 3; 
+    options.iterNum = 3e4; 
+    options.thDist = 0.2; 
+    options.thInlrRatio = 0.1; 
+    options.REFINE = true;
+    options.VERBOSE = 1;
 
-pts1 = featSurface(matchesModel(:, 1), :);
-pts2 = featCur(matchesModel(:, 2), :);
+    pts1 = featSurface(matchesModel(:, 1), :);
+    pts2 = featCur(matchesModel(:, 2), :);
 
-% RANSCAC
-[T, inlierPtIdx, numSuccess, maxInliers, maxInlierRatio] = ...
-            ransac(pts1,pts2,options,@estimateTransform,@calcDists);
+    % RANSCAC
+    [T, inlierPtIdx, numSuccess, maxInliers, maxInlierRatio] = ...
+                ransac(pts1,pts2,options,@estimateTransform,@calcDists);
+end
 
 %% helper function: descriptors within certain distance of given center point
 function mask = getDescriptorIndices(featModel, current_center, R_desc, margin)

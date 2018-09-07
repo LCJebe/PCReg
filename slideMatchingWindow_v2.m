@@ -7,8 +7,8 @@
 
 % which descriptor density should be used? Two different experiments '0.4'
 % and '0.3'
-descDensModel = '0.4';
-descDensSurface = '0.3';
+descDensModel = '0.3';
+descDensSurface = '0.2';
 
 %% load limits of aligned surface for crop-reference!
 path = 'Data/PointClouds/';
@@ -49,7 +49,7 @@ descNameS = strcat('Data/Descriptors/descSurface', descDensSurface, '.mat');
 featNameS = strcat('Data/Descriptors/featSurface', descDensSurface, '.mat');
 LOAD_SURFACE_DESCRIPTORS = true;
 if ~LOAD_SURFACE_DESCRIPTORS
-    dS = 0.3;
+    dS = str2double(descDensSurface);
     margin = 3.5;
     sample_ptsSurface = pcRandomUniformSamples(pcSurface, dS, margin);
 
@@ -86,11 +86,11 @@ R_crop = diagSurface/2; % "smaller"
 
 % now define a random direction of sliding
 % optional: load experiment
-putativeName = strcat('slideMatchingWindowResults/Data/putative_curve_mean', descDensModel, '.mat');
-successName = strcat('slideMatchingWindowResults/Data/success_curve_mean', descDensModel, '.mat');
-inlierName = strcat('slideMatchingWindowResults/Data/inlier_curve_mean', descDensModel, '.mat');
-ratioName = strcat('slideMatchingWindowResults/Data/ratio_curve_mean', descDensModel, '.mat');
-exName = strcat('slideMatchingWindowResults/Data/ex', descDensModel, '.mat');
+putativeName = strcat('slideMatchingWindowResults/Data/putative_curve_mean', descDensModel, 'M', descDensSurface, 'S.mat');
+successName = strcat('slideMatchingWindowResults/Data/success_curve_mean', descDensModel, 'M', descDensSurface, 'S.mat');
+inlierName = strcat('slideMatchingWindowResults/Data/inlier_curve_mean', descDensModel, 'M', descDensSurface, 'S.mat');
+ratioName = strcat('slideMatchingWindowResults/Data/ratio_curve_mean', descDensModel, 'M', descDensSurface, 'S.mat');
+exName = strcat('slideMatchingWindowResults/Data/ex', descDensModel, 'M', descDensSurface, 'S.mat');
 
 LOAD_EXPERIMENT = true;
 if LOAD_EXPERIMENT && exist(exName, 'file')

@@ -8,6 +8,8 @@ rng('shuffle');
 % load descriptors from folder instead of calculating them again
 LOAD_DATA = true;
 
+%% setup
+centerSurface = [34.8970   21.9820   25.4546];
 
 %% read Model and Surface pointcloud
 path = 'Data/PointClouds/';
@@ -128,8 +130,13 @@ for portion = 1:num_portions
     
     featCur_portion = cell(portion_size, 1);
     descCur_portion = cell(portion_size, 1);
+    locationCur_portion = nan(portion_size, 3);
     
     for i = i_start:i_start+portion_size-1 % counter through all spheres
+        if i > num_spheres
+            break;
+        end
+        
         ii = i - i_start + 1; % counter from 1 to portion_size
         c = sample_ptsSpheres(i, :);
 
@@ -144,12 +151,14 @@ for portion = 1:num_portions
         
         featCur_portion{ii} = featCur;
         descCur_portion{ii} = descCur;
+        locationCur_portion(ii) = c;
     end
 
     parfor i = i_start:i_start+portion_size-1
         ii = i - i_start + 1;
         descCur = descCur_portion{ii};
         featCur = featCur_portion{ii};
+        c = locationCur_portion(ii);
         
         % now match with the specified region
         matchesModel = getMatches(descSurface, descCur, par);
@@ -174,11 +183,11 @@ num_putative = num_putative_all(num_putative_all>50);
 fprintf('Matched to all positions in %0.1f seconds...\n', toc);
 
 %% perform RANSAC on spheres with a lot of putative matches
-putative_thresh = 225;
+putative_thresh = 170;
 
 % RANSAC options
 options.minPtNum = 3; 
-options.iterNum = 3e4; 
+options.iterNum = 1e4; 
 options.thDist = 0.2; 
 options.thInlrRatio = 0.1; 
 options.REFINE = true;
@@ -192,6 +201,29 @@ matchesCellsTrial = matchesCells(idx);
 featureCellsTrial = featureCells(idx);
 locationArrayTrial = locationArray(idx, :);
 
+% DEBUG / OPTIONAL
+% use only test cases from a specific area (e.g. around the Surface center)
+SPECIFY_LOCATION = true;
+if SPECIFY_LOCATION
+    dR = 4;
+    p = locationArrayTrial;
+    xLim = centerSurface(1) + [-dR, dR];
+    yLim = centerSurface(2) + [-dR, dR];
+    zLim = centerSurface(3) + [-dR, dR];
+    mask = p(:, 1) > xLim(1) & p(:, 1) < xLim(2) ...
+         & p(:, 2) > yLim(1) & p(:, 2) < yLim(2) ...
+         & p(:, 3) > zLim(1) & p(:, 3) < zLim(2);
+    idx2 = find(mask);
+    clear p;
+    
+    % reduce trial cases further
+    matchesCellsTrial = matchesCellsTrial(idx2);
+    featureCellsTrial = featureCellsTrial(idx2);
+    locationArrayTrial = locationArrayTrial(idx2, :);
+    num_trials = size(idx2, 1);
+end
+
+
 % little print for timing
 fprintf('Performing RANSAC on all promising spheres...\n');
 fprintf('This will take about %d x t minutes...\n', round(num_trials/4/60));
@@ -203,7 +235,7 @@ statsInliers = zeros(num_trials, 1);
 statsRatio = zeros(num_trials, 1);
 
 parfor i = 1:num_trials
-    ind = idx(i);
+    ind = idx(idx2(i));
     
     matches = matchesCellsTrial{i};
     featuresM = featureCellsTrial{i};
@@ -228,8 +260,6 @@ parfor i = 1:num_trials
 end
 
 %%% EVALUTATION %%%
-%% setup
-centerSurface = [34.8970   21.9820   25.4546];
 
 %% first experiment: all locations where RANSAC didn't fail
 % is there a region where we have many more non-fails?
@@ -247,7 +277,7 @@ pcshow(pointCloud(goodLocations, 'Color', color), 'MarkerSize', 50);
 %% second experiment: more selective. which points fulfill certain
 % thresholds for ALL statistics?
 thSucc = 1;
-thInliers = 0;
+thInliers = 40;
 thRatio = 0; % in percent
 
 mask = statsSuccess > thSucc & statsInliers > thInliers & statsRatio > thRatio;
@@ -285,8 +315,18 @@ goodLocations = reshape(goodL(mask), [], 3);
 goodLocations = [goodLocations; centerSurface];
 
 % show all points in black and the correct center in red
+
 color = ones(size(goodLocations, 1), 3) .* [0, 0, 0];
 color(end, :) = [255, 0, 0];
+
+% show all sampled sphere positions in green
+SHOW_SAMPLES = true;
+if SHOW_SAMPLES
+    good_samples = getLocalPoints(sample_ptsSpheres, 4, centerSurface, 0, inf)+centerSurface;
+    goodLocations = [good_samples; goodLocations];
+    color =  [ones(size(good_samples, 1), 3).*[0, 255, 0]; color];
+end
+
 pcshow(pointCloud(goodLocations, 'Color', color), 'MarkerSize', 50);
 
 %% helper function: uniformly sample point cloud
