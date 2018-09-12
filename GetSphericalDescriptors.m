@@ -19,7 +19,7 @@ rng('shuffle');
 % - organize code (almost done)
 % - modularize code more!! (e.g. much redundancy in visualizeGTMatches)
 
-%% define method for sampling points (keypoint detection)
+%% define method for sampling points (1. step of keypoint detection)
 % 'UNIFORM' for a regular grid (uniform sampling) for each pointcloud
 % 'UNIFORM_SAME' for the same regular grid on all point clouds
 % 'RANDOM_POINTS' for random points in point cloud
@@ -148,7 +148,7 @@ descOptM.thVar = [3, 1.5]; % [1.5, 1.5] / [4, 2]
 % specify number of nearest neighbors (KNN) to use for local reference
 % frame. Number should be a fraction between (0, 1], or write 'all'
 % if k is 'all' (same as 1), then points need not be sorted - faster. 
-descOptM.k = 0.85;
+descOptM.k = 0.85;save('complet
 
 % different Options for Model and Surface, optionally
 descOptS = descOptM;

@@ -59,9 +59,19 @@ good_samples = ...
    35.5690   21.7328   27.5702;
    35.5690   23.7328   27.5702;
    37.5690   21.7328   27.5702;
-   37.5690   23.7328   27.5702] + [4, 4, 4];
+   37.5690   23.7328   27.5702];
+
+%% RANSAC options
+options.minPtNum = 3; 
+options.iterNum = 1e4; 
+options.thDist = 0.2; 
+options.thInlrRatio = 0.1; 
+options.REFINE = true;
+options.VERBOSE = 1;
 
 % mask of descriptors that lie within sphere
+good_mask = false(size(good_samples, 1), 1);
+num_matches = zeros(size(good_samples, 1), 1);
 for i = 1:size(good_samples, 1)
     c = good_samples(i, :);
     
@@ -78,22 +88,38 @@ for i = 1:size(good_samples, 1)
 
     fprintf('Found %d putative matches\n', size(matchesModel, 1));
 
-    %% run ransac
-    % RANSAC options
-    options.minPtNum = 3; 
-    options.iterNum = 3e4; 
-    options.thDist = 0.2; 
-    options.thInlrRatio = 0.1; 
-    options.REFINE = true;
-    options.VERBOSE = 1;
 
+    % run ransac
     pts1 = featSurface(matchesModel(:, 1), :);
     pts2 = featCur(matchesModel(:, 2), :);
 
-    % RANSCAC
     [T, inlierPtIdx, numSuccess, maxInliers, maxInlierRatio] = ...
                 ransac(pts1,pts2,options,@estimateTransform,@calcDists);
+            
+    % record sucesses and display sphere centers (Surface center in red,
+    % successes in green, unsuccessful trials in black)
+    if numSuccess > 0
+        good_mask(i) = 1;
+    end
+    
+    % record some statistics
+    num_matches(i) = size(pts1, 1);
+
 end
+
+%% Display results for debugging (which spheres succeed?)
+% record sucesses and display sphere centers (Surface center in red,
+% successes in green, unsuccessful trials in black)
+
+goodLocations = reshape(good_samples(repmat(logical(good_mask), 1, 3)), [], 3);
+goodColor = [0, 255, 0] .* ones(size(goodLocations));
+badLocations = reshape(good_samples(repmat(~good_mask, 1, 3)), [], 3);
+badColor = [0, 0, 0] .* ones(size(badLocations));
+
+color = [goodColor; badColor; [255, 0, 0]];
+points = [goodLocations; badLocations; centerSurface];
+
+pcshow(pointCloud(points, 'Color', color), 'MarkerSize', 50);
 
 %% helper function: descriptors within certain distance of given center point
 function mask = getDescriptorIndices(featModel, current_center, R_desc, margin)

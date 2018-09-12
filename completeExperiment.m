@@ -95,6 +95,9 @@ fprintf('Obtained %d test positions in %0.1f seconds...\n', sum(valid_mask), toc
 valid_mask = cat(2, valid_mask, valid_mask, valid_mask);
 sample_ptsSpheres = reshape(sample_ptsSpheres(valid_mask), [], 3);
 
+%% DEBUG (REMOVE)
+sample_ptsSpheres = getLocalPoints(sample_ptsSpheres, 8, centerSurface, 0, inf) + centerSurface;
+
 %% match the points and get number of putative matches for each sphere
 % matching options
 par.UNNORMALIZE = true;
@@ -111,15 +114,15 @@ par.Unique = true; % true: 1-to-1 mapping only, else set false (default)
 
 par.VERBOSE = 1;
 
-num_putative_all = zeros(size(sample_ptsSpheres, 1), 1);
-matchesCells = cell(size(sample_ptsSpheres, 1), 1);
-featureCells = cell(size(sample_ptsSpheres, 1), 1);
-locationArray = nan(size(sample_ptsSpheres, 1), 3);
+num_spheres = size(sample_ptsSpheres, 1);
+num_putative_all = zeros(num_spheres, 1);
+matchesCells = cell(num_spheres, 1);
+featureCells = cell(num_spheres, 1);
+locationArray = nan(num_spheres, 3);
 
 tic
-num_spheres = size(sample_ptsSpheres, 1);
 fprintf('Getting Putative Matches for all spheres...\n');
-fprintf('This will take about %d x t minutes...\n', round(num_spheres/4/60));
+fprintf('This will take about %0.1f x t minutes...\n', double(num_spheres)/4/60*1.5);
 
 % do some calculations before the parfor to avoid running out of memory
 portion_size = 16;
@@ -151,35 +154,34 @@ for portion = 1:num_portions
         
         featCur_portion{ii} = featCur;
         descCur_portion{ii} = descCur;
-        locationCur_portion(ii) = c;
+        locationCur_portion(ii, :) = c;
     end
 
-    parfor i = i_start:i_start+portion_size-1
+    endindex = min(i_start+portion_size-1, num_spheres);
+    parfor i = i_start:endindex
         ii = i - i_start + 1;
         descCur = descCur_portion{ii};
         featCur = featCur_portion{ii};
-        c = locationCur_portion(ii);
+        c = locationCur_portion(ii, :);
         
         % now match with the specified region
         matchesModel = getMatches(descSurface, descCur, par);
 
         % save number of putative matches
         num_putative_all(i) = size(matchesModel, 1);
-
-        % if number of putative matches is above a certain threshold, also save
-        % the matches and the corresponding feature locations
-        if num_putative_all(i) > 50
-            matchesCells{i} = matchesModel; % indices of matches
-            featureCells{i} = featCur; % locations of local features
-            locationArray(i, :) = c; % center of large sphere
-        end
+        matchesCells{i} = matchesModel; % indices of matches
+        featureCells{i} = featCur; % locations of local features
+        locationArray(i, :) = c; % center of large sphere
     end
 end
-% reduce the cell arrays to contain only non-empty cells
-matchesCells = matchesCells(~cellfun('isempty',matchesCells));
-featureCells = featureCells(~cellfun('isempty',featureCells));
-locationArray = locationArray(~cellfun('isempty',featureCells), :);
-num_putative = num_putative_all(num_putative_all>50);
+
+%% reduce the cell arrays to contain only non-empty cells
+empty_idx = cellfun('isempty',featureCells);
+matchesCellsFull = matchesCells(~empty_idx);
+featureCellsFull = featureCells(~empty_idx);
+locationArrayFull = locationArray(~empty_idx, :);
+num_putativeFull = num_putative_all(~empty_idx);
+
 fprintf('Matched to all positions in %0.1f seconds...\n', toc);
 
 %% perform RANSAC on spheres with a lot of putative matches
@@ -187,23 +189,23 @@ putative_thresh = 170;
 
 % RANSAC options
 options.minPtNum = 3; 
-options.iterNum = 1e4; 
+options.iterNum = 3e4; 
 options.thDist = 0.2; 
 options.thInlrRatio = 0.1; 
 options.REFINE = true;
 options.VERBOSE = 1;
 
-idx = find(num_putative>putative_thresh);
-num_trials = size(idx, 1);
+idx = find(num_putativeFull>putative_thresh);
 
 % prepare cells to contain trial cases only
-matchesCellsTrial = matchesCells(idx);
-featureCellsTrial = featureCells(idx);
-locationArrayTrial = locationArray(idx, :);
+matchesCellsTrial = matchesCellsFull(idx);
+featureCellsTrial = featureCellsFull(idx);
+locationArrayTrial = locationArrayFull(idx, :);
+num_putativeTrial = num_putativeFull(idx);
 
 % DEBUG / OPTIONAL
 % use only test cases from a specific area (e.g. around the Surface center)
-SPECIFY_LOCATION = true;
+SPECIFY_LOCATION = false;
 if SPECIFY_LOCATION
     dR = 4;
     p = locationArrayTrial;
@@ -220,13 +222,17 @@ if SPECIFY_LOCATION
     matchesCellsTrial = matchesCellsTrial(idx2);
     featureCellsTrial = featureCellsTrial(idx2);
     locationArrayTrial = locationArrayTrial(idx2, :);
-    num_trials = size(idx2, 1);
+    num_putativeTrial = num_putativeTrial(idx2);
+else
+    idx2 = (1:length(idx))';
 end
+
+num_trials = size(idx2, 1);
 
 
 % little print for timing
 fprintf('Performing RANSAC on all promising spheres...\n');
-fprintf('This will take about %d x t minutes...\n', round(num_trials/4/60));
+fprintf('This will take about %0.1f x t minutes...\n', double(num_trials)/4/60);
 
 % statistics: numPutative, numSuccess, maxInliers, maxInlierRatio
 statsPutative = zeros(num_trials, 1);
@@ -235,7 +241,6 @@ statsInliers = zeros(num_trials, 1);
 statsRatio = zeros(num_trials, 1);
 
 parfor i = 1:num_trials
-    ind = idx(idx2(i));
     
     matches = matchesCellsTrial{i};
     featuresM = featureCellsTrial{i};
@@ -243,7 +248,7 @@ parfor i = 1:num_trials
     pts2 = featuresM(matches(:, 2), :);
     
     % sanity check
-    assert(num_putative(ind) == size(matches, 1));
+    assert(num_putativeTrial(i) == size(matches, 1));
     
     % RANSCAC
     tic
@@ -253,7 +258,7 @@ parfor i = 1:num_trials
            
     % save statistics. needed to find out which sphere matches best
     
-    statsPutative(i) = num_putative(ind);
+    statsPutative(i) = num_putativeTrial(i);
     statsSuccess(i) = numSuccess;
     statsInliers(i) = maxInliers;
     statsRatio(i) = maxInlierRatio;
@@ -268,8 +273,8 @@ goodLocations = locationArrayTrial(indices, :);
 goodLocations = [goodLocations; centerSurface];
 
 
-% show all points in black and the correct center in red
-color = ones(size(goodLocations, 1), 3) .* [0, 0, 0];
+% show all points in green and the correct center in red
+color = ones(size(goodLocations, 1), 3) .* [0, 255, 0];
 color(end, :) = [255, 0, 0];
 pcshow(pointCloud(goodLocations, 'Color', color), 'MarkerSize', 50);
 
@@ -277,16 +282,16 @@ pcshow(pointCloud(goodLocations, 'Color', color), 'MarkerSize', 50);
 %% second experiment: more selective. which points fulfill certain
 % thresholds for ALL statistics?
 thSucc = 1;
-thInliers = 40;
+thInliers = 0;
 thRatio = 0; % in percent
 
-mask = statsSuccess > thSucc & statsInliers > thInliers & statsRatio > thRatio;
-mask = repmat(mask, 1, 3);
-goodLocations = reshape(locationArray(mask), [], 3);
+mask = statsSuccess >= thSucc & statsInliers >= thInliers & statsRatio >= thRatio;
+mask = cat(2, mask, mask, mask);
+goodLocations = reshape(locationArrayTrial(mask), [], 3);
 goodLocations = [goodLocations; centerSurface];
 
-% show all points in black and the correct center in red
-color = ones(size(goodLocations, 1), 3) .* [0, 0, 0];
+% show all points in green and the correct center in red
+color = ones(size(goodLocations, 1), 3) .* [0, 255, 0];
 color(end, :) = [255, 0, 0];
 pcshow(pointCloud(goodLocations, 'Color', color), 'MarkerSize', 50);
 
@@ -302,7 +307,7 @@ statsRatioSU = statsRatio(indices);
 goodL = locationArrayTrial(indices, :);
 
 % D is "radius" of cube
-D = 4;
+D = 20;
 mask = goodL(:, 1) > c(1)-D & goodL(:, 1) < c(1)+D ...
          & goodL(:, 2) > c(2)-D & goodL(:, 2) < c(2)+D ...
          & goodL(:, 3) > c(3)-D & goodL(:, 3) < c(3)+D;     
@@ -314,17 +319,17 @@ mask = cat(2, mask, mask, mask);
 goodLocations = reshape(goodL(mask), [], 3);    
 goodLocations = [goodLocations; centerSurface];
 
-% show all points in black and the correct center in red
+% show all points in green and the correct center in red
 
-color = ones(size(goodLocations, 1), 3) .* [0, 0, 0];
+color = ones(size(goodLocations, 1), 3) .* [0, 255, 0];
 color(end, :) = [255, 0, 0];
 
-% show all sampled sphere positions in green
+% show all sampled sphere positions in black
 SHOW_SAMPLES = true;
 if SHOW_SAMPLES
-    good_samples = getLocalPoints(sample_ptsSpheres, 4, centerSurface, 0, inf)+centerSurface;
+    good_samples = getLocalPoints(locationArrayTrial, D, centerSurface, 0, inf)+centerSurface;
     goodLocations = [good_samples; goodLocations];
-    color =  [ones(size(good_samples, 1), 3).*[0, 255, 0]; color];
+    color =  [ones(size(good_samples, 1), 3).*[0, 0, 0]; color];
 end
 
 pcshow(pointCloud(goodLocations, 'Color', color), 'MarkerSize', 50);
