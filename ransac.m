@@ -41,6 +41,7 @@ function [T, varargout] = ransac( pts1,pts2,ransacCoef,funcFindTransf,funcDist)
         % 1. fit using  random points
         randomInts = randperm(ptNum);
         sampleIdx = randomInts(1:minPtNum);
+               
         f1 = funcFindTransf(pts1(sampleIdx, :),pts2(sampleIdx, :));
 
         % 2. count the inliers, if more than thInlr, refit; else iterate

@@ -7,6 +7,12 @@ function T = estimateTransform(pts1, pts2)
 
     num_points = size(pts1, 1);
     
+    % make sure that the rank full
+    if rank(pts1) < 3 || rank(pts2) < 2
+        T = [];
+        return;
+    end
+    
     % if points only span a plane, add a 4th point to make a full rank
     % decomposition (normal vector)
     if num_points == 3
@@ -40,12 +46,17 @@ function T = estimateTransform(pts1, pts2)
     cd = mean(d, 2);
     cm = mean(m, 2);
     
+    %DEBUG
+    if sum(isnan(cd)) + sum(isnan(cm)) > 0
+        pause_here;
+    end
+    
     % centered points
     d_c = d - cd;
     m_c = m - cm;
     
     H = m_c*d_c';
-    
+       
     [U, S, V] = svd(H); % H = U*S*V'
     
     R = V*U';

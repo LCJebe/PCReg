@@ -29,7 +29,7 @@ rng('shuffle');
 sampling_method = 'RANDOM_UNIFORM_SPHERICAL';
 
 % if 'UNIFORM' or 'UNIFORM_SAME' or 'RANDOM_UNIFORM' specify density of sphere-grid
-dS = 0.2; % spacing of spheres along each axis 
+dS = 0.3; % spacing of spheres along each axis 
 dM = 0.5; % time goes with (1/d)^3 keep that in mind
 
 % margin: samples outside the box can be useful (should be equal to or > R)
@@ -40,12 +40,12 @@ sample_frac = 0.2;
 
 %% READ in aligned surface and model crop
 path = 'Data/PointClouds/';
-pcSurface = pcread(strcat(path, 'SurfaceNew_DS3_alignedM.pcd'));
+pcSurface = pcread(strcat(path, 'SurfaceNew_DS3.pcd'));
 pcModel = pcread(strcat(path, 'GoodCropSpherical_smaller.pcd'));
 pcRand = pcread(strcat(path, 'RandCropSpherical_smaller.pcd'));
 
 % recommended: center point clouds
-SHIFT = false; % 'true' destroys alignment, if aligned
+SHIFT = true; % 'true' destroys alignment, if aligned
 
 % turn off to omit matching with random crop
 RAND_CROP = false;
@@ -87,22 +87,22 @@ if strcmp(sampling_method, 'UNIFORM_SAME')
     sample_ptsRand = sample_pts;
     
 elseif strcmp(sampling_method, 'UNIFORM')    
-    sample_ptsSurface = pcUniformSamples(pcSurface, d);
-    sample_ptsModel = pcUniformSamples(pcModel, d);
-    sample_ptsRand = pcUniformSamples(pcRand, d);
+    sample_ptsSurface = pcUniformSamples(pcSurface, dS);
+    sample_ptsModel = pcUniformSamples(pcModel, dM);
+    sample_ptsRand = pcUniformSamples(pcRand, dM);
     
 elseif strcmp(sampling_method, 'RANDOM_UNIFORM')
     % use margin for surface, but not for model
-    sample_ptsSurface = pcRandomUniformSamples(pcSurface, d, margin);
-    sample_ptsModel = pcRandomUniformSamples(pcModel, d, -margin);
-    sample_ptsRand = pcRandomUniformSamples(pcRand, d, -margin);
+    sample_ptsSurface = pcRandomUniformSamples(pcSurface, dS, margin);
+    sample_ptsModel = pcRandomUniformSamples(pcModel, dM, -margin);
+    sample_ptsRand = pcRandomUniformSamples(pcRand, dM, -margin);
     
 elseif strcmp(sampling_method, 'RANDOM_UNIFORM_SPHERICAL')    
     % sample just like random uniform for the surface
-    sample_ptsSurface = pcRandomUniformSamples(pcSurface, d, margin);
+    sample_ptsSurface = pcRandomUniformSamples(pcSurface, dS, margin);
     % but sample spherical for the good and bad crop
-    sample_ptsModel = pcRandomUniformSphericalSamples(pcModel, d, -margin);
-    sample_ptsRand = pcRandomUniformSphericalSamples(pcRand, d, -margin);
+    sample_ptsModel = pcRandomUniformSphericalSamples(pcModel, dM, -margin);
+    sample_ptsRand = pcRandomUniformSphericalSamples(pcRand, dM, -margin);
     
 elseif strcmp(sampling_method, 'RANDOM_POINTS')    
     sample_ptsSurface = pcRandomPoints(pcSurface, sample_frac);
@@ -148,7 +148,7 @@ descOptM.thVar = [3, 1.5]; % [1.5, 1.5] / [4, 2]
 % specify number of nearest neighbors (KNN) to use for local reference
 % frame. Number should be a fraction between (0, 1], or write 'all'
 % if k is 'all' (same as 1), then points need not be sorted - faster. 
-descOptM.k = 0.85;save('complet
+descOptM.k = 0.85;
 
 % different Options for Model and Surface, optionally
 descOptS = descOptM;

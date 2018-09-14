@@ -15,6 +15,7 @@ centerSurface = [34.8970   21.9820   25.4546];
 path = 'Data/PointClouds/';
 pcModel = pcread(strcat(path, 'ModelSmoothUp3.pcd'));
 pcSurface = pcread(strcat(path, 'SurfaceNew_DS3.pcd'));
+pcSurface = centerPointCloud(pcSurface); % this has been used for the descriptors
 
 if ~LOAD_DATA
     %% get descriptors for surface and for the complete model
@@ -41,6 +42,7 @@ if ~LOAD_DATA
 
     [featModel, descModel] = ...
             speedyDescriptors(pcModel.Location, sampleOptM, descOptM);   
+        
     % save the features and descriptors to workspace
     save('Data/Descriptors/featModel0.4.mat', 'featModel');
     save('Data/Descriptors/descModel0.4.mat', 'descModel');
@@ -48,17 +50,18 @@ if ~LOAD_DATA
     [featSurface, descSurface] = ...
             getSpacialHistogramDescriptors(pcSurface.Location, sample_ptsSurface, descOptS);   
 else
-    load('Data/Descriptors/featSurface0.3.mat');
-    load('Data/Descriptors/descSurface0.3.mat'); 
+    load('Data/Descriptors/featSurface0.3_rand.mat');
+    load('Data/Descriptors/descSurface0.3_rand.mat'); 
     load('Data/Descriptors/featModel0.3.mat');
     load('Data/Descriptors/descModel0.3.mat'); 
 end
     
 %% sliding sphere selection of descriptor locations
 % setup: get length of cuboid diagonal
-xLimS = pcSurface.XLimits;
-yLimS = pcSurface.YLimits;
-zLimS = pcSurface.ZLimits;
+pcSurfaceRaw = pcread(strcat(path, 'SurfaceNew_DS3.pcd'));
+xLimS = pcSurfaceRaw.XLimits;
+yLimS = pcSurfaceRaw.YLimits;
+zLimS = pcSurfaceRaw.ZLimits;
 diagSurface = norm([xLimS(2) - xLimS(1), ...
                     yLimS(2) - yLimS(1), ...
                     zLimS(2) - zLimS(1)]);
@@ -96,7 +99,11 @@ valid_mask = cat(2, valid_mask, valid_mask, valid_mask);
 sample_ptsSpheres = reshape(sample_ptsSpheres(valid_mask), [], 3);
 
 %% DEBUG (REMOVE)
-sample_ptsSpheres = getLocalPoints(sample_ptsSpheres, 8, centerSurface, 0, inf) + centerSurface;
+%center = centerSurface;
+%center = [75, 43, 68];
+%center = [24, 12, 48];
+%center = [52, 12, 44];
+%sample_ptsSpheres = getLocalPoints(sample_ptsSpheres, 8, center, 0, inf) + center;
 
 %% match the points and get number of putative matches for each sphere
 % matching options
@@ -184,24 +191,32 @@ num_putativeFull = num_putative_all(~empty_idx);
 
 fprintf('Matched to all positions in %0.1f seconds...\n', toc);
 
+% clear some memory
+clear featureCells matchesCells locationArray num_putative_all
+
 %% perform RANSAC on spheres with a lot of putative matches
-putative_thresh = 170;
+putative_thresh = 75;
 
 % RANSAC options
-options.minPtNum = 3; 
-options.iterNum = 3e4; 
-options.thDist = 0.2; 
-options.thInlrRatio = 0.1; 
+options.minPtNum = 3; % 3
+options.iterNum = 3e4; % 3e4
+options.thDist = 0.2;  % 0.2
+options.thInlrRatio = 0.1; % 0.1
 options.REFINE = true;
 options.VERBOSE = 1;
 
-idx = find(num_putativeFull>putative_thresh);
+if exist('matchesCellsFull', 'var')
+    idx = find(num_putativeFull>putative_thresh);
 
-% prepare cells to contain trial cases only
-matchesCellsTrial = matchesCellsFull(idx);
-featureCellsTrial = featureCellsFull(idx);
-locationArrayTrial = locationArrayFull(idx, :);
-num_putativeTrial = num_putativeFull(idx);
+    % prepare cells to contain trial cases only
+    matchesCellsTrial = matchesCellsFull(idx);
+    featureCellsTrial = featureCellsFull(idx);
+    locationArrayTrial = locationArrayFull(idx, :);
+    num_putativeTrial = num_putativeFull(idx);
+end
+
+% clear some memory
+clear matchesCellsFull featureCellsFull locationArrayFull num_putativeFull
 
 % DEBUG / OPTIONAL
 % use only test cases from a specific area (e.g. around the Surface center)
@@ -281,14 +296,26 @@ pcshow(pointCloud(goodLocations, 'Color', color), 'MarkerSize', 50);
 
 %% second experiment: more selective. which points fulfill certain
 % thresholds for ALL statistics?
-thSucc = 1;
-thInliers = 0;
+thSucc = 0;
+thInliers = 30;
 thRatio = 0; % in percent
+thPutative = 170;
 
-mask = statsSuccess >= thSucc & statsInliers >= thInliers & statsRatio >= thRatio;
+mask = statsSuccess >= thSucc & statsInliers >= thInliers & statsRatio >= thRatio & statsPutative >= thPutative;
+indices = find(mask > 0);
+
+% get location and stats of only successful runs
+statsPutativeSU = statsPutative(mask);
+statsSuccessSU = statsSuccess(mask);
+statsInliersSU = statsInliers(mask);
+statsRatioSU = statsRatio(mask);
+
+% get good locations
 mask = cat(2, mask, mask, mask);
 goodLocations = reshape(locationArrayTrial(mask), [], 3);
 goodLocations = [goodLocations; centerSurface];
+
+
 
 % show all points in green and the correct center in red
 color = ones(size(goodLocations, 1), 3) .* [0, 255, 0];
@@ -298,29 +325,24 @@ pcshow(pointCloud(goodLocations, 'Color', color), 'MarkerSize', 50);
 %% third experiment
 % look at stats of the "correct" spheres
 c = centerSurface;
-indices = find(statsSuccess > 0);
+
+%threshold for green points
+thSucc = 1;
+thInliers = 25;
+thRatio = 10; % in percent
+thPutative = 170;
+
+mask = statsSuccess >= thSucc & statsInliers >= thInliers & statsRatio >= thRatio & statsPutative >= thPutative;
+indices = find(mask > 0);
+
 % get location and stats of only successful runs
 statsPutativeSU = statsPutative(indices);
 statsSuccessSU = statsSuccess(indices);
 statsInliersSU = statsInliers(indices);
 statsRatioSU = statsRatio(indices);
-goodL = locationArrayTrial(indices, :);
-
-% D is "radius" of cube
-D = 20;
-mask = goodL(:, 1) > c(1)-D & goodL(:, 1) < c(1)+D ...
-         & goodL(:, 2) > c(2)-D & goodL(:, 2) < c(2)+D ...
-         & goodL(:, 3) > c(3)-D & goodL(:, 3) < c(3)+D;     
-
-% indices of respective locations
-indices = find(mask);
-
-mask = cat(2, mask, mask, mask);
-goodLocations = reshape(goodL(mask), [], 3);    
-goodLocations = [goodLocations; centerSurface];
+goodLocations = locationArrayTrial(indices, :);
 
 % show all points in green and the correct center in red
-
 color = ones(size(goodLocations, 1), 3) .* [0, 255, 0];
 color(end, :) = [255, 0, 0];
 
@@ -328,11 +350,74 @@ color(end, :) = [255, 0, 0];
 SHOW_SAMPLES = true;
 if SHOW_SAMPLES
     good_samples = getLocalPoints(locationArrayTrial, D, centerSurface, 0, inf)+centerSurface;
-    goodLocations = [good_samples; goodLocations];
+    showLocations = [good_samples; goodLocations];
     color =  [ones(size(good_samples, 1), 3).*[0, 0, 0]; color];
 end
 
-pcshow(pointCloud(goodLocations, 'Color', color), 'MarkerSize', 50);
+pcshow(pointCloud(showLocations, 'Color', color), 'MarkerSize', 50);
+
+%% finally, cluster points, and select the largest cluster!
+r = 2.0;
+clusters = clusterPoints(goodLocations(1:end-1, :), r);
+cluster_size = cellfun('length', clusters);
+
+% get index of largest cluster
+[num_points, idx] = max(cluster_size);
+
+% get best cluster
+bestCluster = clusters{idx};
+
+% show points of only best cluster in green, like before
+bestLocations = goodLocations(bestCluster, :);
+bestLocations = [bestLocations; centerSurface];
+
+% color points, reference center in red
+color = ones(size(bestLocations, 1), 3) .* [0, 255, 0];
+color(end, :) = [255, 0, 0];
+
+pcshow(pointCloud(bestLocations, 'Color', color), 'MarkerSize', 50);
+
+%% now we aggregate all INLIER matches from these points, and estimate a final transform
+matchesCellsGood = matchesCellsTrial(indices);
+featuresCellsGood = featureCellsTrial(indices);
+locationArrayGood = locationArrayTrial(indices, :);
+
+matchesCellsBest = matchesCellsGood(bestCluster);
+featuresCellsBest = featuresCellsGood(bestCluster);
+locationArrayBest = locationArrayGood(bestCluster, :);
+
+% aggregate matches!!
+pts1_agg = [];
+pts2_agg = [];
+for i = 1:length(matchesCellsBest)
+    matches = matchesCellsBest{i};
+    featuresM = featuresCellsBest{i};
+    location = locationArrayBest(i, :);
+    pts1 = featSurface(matches(:, 1), :);
+    pts2 = featuresM(matches(:, 2), :);
+    
+    % aggregate
+    pts1_agg = [pts1_agg; pts1];
+    pts2_agg = [pts2_agg; pts2];
+end
+
+% make the matches unique
+[pts1_agg, ia, ic] = unique(pts1_agg,'rows');
+pts2_agg = pts2_agg(ia, :);
+[pts2_agg, ia, ~] = unique(pts2_agg,'rows');
+pts1_agg = pts1_agg(ia, :);
+
+
+% run RANSAC again ONCE on aggregated matches
+options.minPtNum = 3; % 3
+options.iterNum = 3e4; % 3e4
+options.thDist = 0.5;  % 0.2
+options.thInlrRatio = 0.05; % 0.1
+options.REFINE = true;
+options.VERBOSE = 1;
+
+[T, inlierPtIdx, numSuccess, maxInliers, maxInlierRatio] = ...
+        ransac(pts1_agg,pts2_agg,options,@estimateTransform,@calcDists);
 
 %% helper function: uniformly sample point cloud
 function sample_pts = pcUniformSamples(pcIn, d) 
@@ -378,4 +463,16 @@ function d = calcDists(T,pts1,pts2)
     pts2_trans = pts2*T;
     pts2_trans = pts2_trans(:, 1:3);
     d = sum((pts1-pts2_trans).^2,2);
+end
+
+%% helper function: center PC (0,0) in middle of crop
+function pc_out = centerPointCloud(pc)
+    % translation of pointcloud
+    T = [(pc.XLimits(1) + pc.XLimits(2))/2, ...
+        (pc.YLimits(1) + pc.YLimits(2))/2, ...
+        (pc.ZLimits(1) + pc.ZLimits(2))/2];
+    A = eye(4);
+    A(4, 1:3) = -T;
+    tform = affine3d(A);
+    pc_out = pctransform(pc, tform);
 end
