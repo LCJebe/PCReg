@@ -3,12 +3,14 @@
 % does not work yet!!!!!!!!!!!
 
 %% apply estimated transformation to Surface (pts2)
+% transform Surface from "raw" to "rand" location
+load('TF_rand2raw.mat');
+pts = quickTF(pcSurface.Location, invertTF(TF)); % invert so it's raw2rand
 
-pts = pcSurface.Location;
 color = pcSurface.Color;
-pts_tform = [pts, ones(size(pts, 1), 1)]*T;
+pts_tform = quickTF(pts, invertTF(T_final));
 
-pcSurface_aligned = pointCloud(pts_tform(:, 1:3), 'Color', color);
+pcSurface_aligned = pointCloud(pts_tform, 'Color', color);
 
 %% Save aligned model to pcd file
 path = 'Data/PointClouds/';

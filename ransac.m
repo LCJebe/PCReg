@@ -1,6 +1,6 @@
 function [T, varargout] = ransac( pts1,pts2,ransacCoef,funcFindTransf,funcDist)
     %[T, inlierIdx] = ransac1( pts1,pts2,ransacCoef,funcFindTransf,funcDist )
-    %	Use RANdom SAmple Consensus to find a fit from PTS1 to PTS2.
+    %	Use Random Sample Consensus to find a fit from PTS1 to PTS2.
     %	PTS1 is M*n matrix including n points with dim M, PTS2 is N*n;
     %	The transform, T, and the indices of inliers, are returned.
     %
