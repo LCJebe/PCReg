@@ -1,6 +1,9 @@
-function [pts_aligned, coeff_unambig, c] = AlignPoints_v2(pts)
-    % returns the pca-aligned points (pts_aligned)
-    % and the rotation matrix that was used (coeff_unambig)
+function [pts_aligned, coeff_unambig, c] = AlignPoints_c(pts)
+%% AlignPoints_v2.m
+% PCA on points within a radius r of the centroid (== local PCA)!
+% returns the pca-aligned points (pts_aligned)
+% and the rotation matrix that was used (coeff_unambig)
+% and the centroid of the points
 
     % --- 1) find median (L1) / mean (L2)
     c = mean(pts, 1);

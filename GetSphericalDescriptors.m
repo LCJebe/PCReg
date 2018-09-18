@@ -30,7 +30,7 @@ sampling_method = 'RANDOM_UNIFORM_SPHERICAL';
 
 % if 'UNIFORM' or 'UNIFORM_SAME' or 'RANDOM_UNIFORM' specify density of sphere-grid
 dS = 0.3; % spacing of spheres along each axis 
-dM = 0.5; % time goes with (1/d)^3 keep that in mind
+dM = 0.3; % time goes with (1/d)^3 keep that in mind
 
 % margin: samples outside the box can be useful (should be equal to or > R)
 margin = 3.5;
@@ -40,18 +40,18 @@ sample_frac = 0.2;
 
 %% READ in aligned surface and model crop
 path = 'Data/PointClouds/';
-pcSurface = pcread(strcat(path, 'SurfaceNew_DS3.pcd'));
+pcSurface = pcread(strcat(path, 'SurfaceNew_DS3_alignedM.pcd'));
 pcModel = pcread(strcat(path, 'GoodCropSpherical_smaller.pcd'));
 pcRand = pcread(strcat(path, 'RandCropSpherical_smaller.pcd'));
 
 % recommended: center point clouds
-SHIFT = true; % 'true' destroys alignment, if aligned
+SHIFT = false; % 'true' destroys alignment, if aligned
 
 % turn off to omit matching with random crop
-RAND_CROP = false;
+RAND_CROP = true;
 
 % transform surface manually (good to check RANSAC)
-MANUAL_TF = true;
+MANUAL_TF = false;
 RotS = rand(1, 3)*2*pi;
 transS = [13, 25, -17];
 
@@ -129,9 +129,6 @@ descriptor = 'Histogram';
 % if descriptor is 'Moment' optionally align to a local reference frame
 descOptM.ALIGN_POINTS = true;
 
-% optional: don't use first moment and center by this instead
-descOptM.CENTER = false;
-
 % specify minimum number of points that has to be in sphere
 descOptM.min_pts = 500; % 51 / 101 / 500
 
@@ -148,7 +145,7 @@ descOptM.thVar = [3, 1.5]; % [1.5, 1.5] / [4, 2]
 % specify number of nearest neighbors (KNN) to use for local reference
 % frame. Number should be a fraction between (0, 1], or write 'all'
 % if k is 'all' (same as 1), then points need not be sorted - faster. 
-descOptM.k = 0.85;
+descOptM.k = 0.85; % 0.85
 
 % different Options for Model and Surface, optionally
 descOptS = descOptM;
@@ -200,7 +197,7 @@ norm_factor = 2; % 2
 % optional: raise descriptors to power to change L1 distance metric
 % use only with L1-distance
 CHANGE_METRIC = true;
-metric_factor = 0.6; % 0.45 / 0.6
+metric_factor = 0.6; % 0.6
 
 % mahalanobis distance? Similar to L2. Don't combine with the
 % change metric!
@@ -237,6 +234,7 @@ else
         descRandN = descRand;
     end
 end
+
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %%% --- raise descriptors to power before L1-matching --- %%%

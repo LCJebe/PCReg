@@ -21,7 +21,6 @@ function [feat, desc] = getSpacialHistogramDescriptors(pts, sample_pts, options)
     thVar = options.thVar;
     K = options.k;
     ALIGN_POINTS = options.ALIGN_POINTS;
-    CENTER = options.CENTER;
     if isfield(options, 'VERBOSE')
         VERBOSE = options.VERBOSE;
     else
@@ -30,8 +29,9 @@ function [feat, desc] = getSpacialHistogramDescriptors(pts, sample_pts, options)
         
     % more internal options
     NORMALIZE = false; % should be true unless point density is similar    
-    ALIGN_v2 = true; % use new method for alignment to see if it performs better. 
-    r = 2.5; % radius for align_v2.
+    LOCAL_PCA = false; % use new method for alignment to see if it performs better. 
+    
+    r = 2.5; % radius for LOCAL_PCA.
         
     % define histogram layout (bins) in spherical coordinates
     % it should be NUM_PHI = 2*NUM_THETA
@@ -85,7 +85,7 @@ function [feat, desc] = getSpacialHistogramDescriptors(pts, sample_pts, options)
             pts_k = pts_local(1:k, :);
             if ~(sum(thVar == 1) == 2) || ALIGN_POINTS
                 % use old alignment method
-                if ~ALIGN_v2
+                if ~LOCAL_PCA
                     %[coeff, pts_lrf, variances] = pca(pts_k, 'Algorithm', 'eig', 'Centered', false);
                     try
                         [coeff, pts_lrf, variances] = pca(pts_k, 'Algorithm', 'eig');
@@ -120,8 +120,8 @@ function [feat, desc] = getSpacialHistogramDescriptors(pts, sample_pts, options)
                     continue
                 end
             end
-
-            % ---- use sign disambiguition method for aligned points
+            
+            % ---- use sign disambiguation method for aligned points
             k = size(pts_lrf, 1);
             % count number of points with positive sign and see if they
             % dominate ( k nearest neighbors)
@@ -140,11 +140,8 @@ function [feat, desc] = getSpacialHistogramDescriptors(pts, sample_pts, options)
                 coeff_unambig = coeff .* [x_sign, y_sign, z_sign];
                 
                 % transform all points into the new coordinate system
-                if CENTER
-                    pts_local = (pts_local - mean(pts_local, 1))*coeff_unambig;
-                else
-                    pts_local = pts_local*coeff_unambig;
-                end
+                pts_local = pts_local*coeff_unambig;
+
             end
             
             % ---- calculate the descriptor

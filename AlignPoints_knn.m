@@ -1,34 +1,27 @@
-function [pts_aligned, coeff_unambig, c] = AlignPoints_KNN_v2(pts)
-    % returns the pca-aligned points (pts_aligned)
-    % and the rotation matrix that was used (coeff_unambig)
+function [pts_aligned, coeff_unambig, c] = AlignPoints_knn(pts, K)
+%% AlignPoints_KNN.m
+% PCA for alignment on the k (in ABOSLUTE NUMBERS) nearest neighbors of the centroid
+% returns the pca-aligned points (pts_aligned),
+% the rotation matrix that was used (coeff_unambig)
+% and the centroid 
 
     % --- 1) find median (L1) / mean (L2)
     c = mean(pts, 1);
     
     % --- 2) get the k nearest neighbors from the centroid
-    k = 0.85; % fraction of points considered. (rest assumed outlier)
-    K = round(size(pts,1) * k);
+    K = min(K, size(pts, 1));
     pts_rel = pts - c;
     dists = vecnorm(pts_rel, 2, 2);
     [~, I] = sort(dists);
     pts_sorted = pts_rel(I, :);
     pts_k = pts_sorted(1:K, :);
-        
-
-    % --- now do Align_v2 on top of the KNN alignment
-    centroid = mean(pts_k, 1);
-
-    % --- 2) get local neighborhood around this point with radius r and
-    % make sure there is at least a bare minimum of points included
-    r = 2.5;
-    [pts_rel, ~] = getLocalPoints(pts_k, r, centroid, 250, inf);
     
     
     % --- 3) use those points for alignment (get transform)
-    [coeff, pts_lrf, ~] = pca(pts_rel, 'Algorithm', 'eig'); 
+    [coeff, pts_lrf, ~] = pca(pts_k, 'Algorithm', 'eig'); 
 
     % ---- use sign disambiguition method for aligned points
-    k = size(pts_lrf, 1);
+    k = size(pts, 1);
 
     % count number of points with positive sign and see if they
     % dominate 

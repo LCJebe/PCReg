@@ -1,126 +1,195 @@
+%% visualize GT matches
+% this code takes ground truth correspondeces from the good crop and
+% aligned Model, and tries to align them using PCA, Sign disambiguation,
+% and optional %KNN or local points only
+
 close all
 
 %% load model and aligned surface
 path = 'Data/PointClouds/';
 
-pcSurface = pcread(strcat(path, 'Surface_DS3_alignedM.pcd'));
+pcSurface = pcread(strcat(path, 'SurfaceNew_DS3_alignedM.pcd'));
 pcModel = pcread(strcat(path, 'GoodCropSpherical_smaller.pcd'));
 
 %% options
-MAX_MATCHES = 16;
+MAX_MATCHES = 0;
+METHOD = 'KNN'; % 'C', 'KNN', KNN_C' % just for the display of points
+TEST_KNN = false; % compare different KNN methods (for Sept 19 Presentation)
+TEST_C = false; % test effect of center vs. centroid in alignment
 
 %% sample points (only intersection of surface and model sampling area)
-d = 1;
+d = 0.3;
 margin = 3.5;
 sample_pts = pcIntersectionSamples(pcSurface, pcModel, d, margin);
 
 %% select points, where surface and model are not empty
 R = 3.5;
 min_pts = 500;
-max_pts = 8000;
+max_pts = 6000;
 thVar = [3, 1.5];
 
 %% determine the valid points and sample only those
-
-valid_mask = false(size(sample_pts, 1), 1);
+% only when both sopport regions have Nmin < Npoints < Nmax points
+mask_crit1 = false(size(sample_pts, 1), 1);
+mask_crit2 = false(size(sample_pts, 1), 1);
 ptsSurface = pcSurface.Location;
 ptsModel = pcModel.Location;
 
 tic
+local_ptsSCell = cell(size(sample_pts, 1), 1);
+local_ptsMCell = cell(size(sample_pts, 1), 1);
+ratiosSArray = zeros(size(sample_pts, 1), 2);
+ratiosMArray = zeros(size(sample_pts, 1), 2);
+locationArray = zeros(size(sample_pts, 1), 3);
+
 parfor i = 1:size(sample_pts, 1)
     c = sample_pts(i, :);
-    [~, distsS] = getLocalPoints(ptsSurface, R, c, min_pts, max_pts);
-    [~, distsM] = getLocalPoints(ptsModel, R, c, min_pts, max_pts);
+    [local_ptsS, distsS] = getLocalPoints(ptsSurface, R, c, min_pts, max_pts);
+    [local_ptsM, distsM] = getLocalPoints(ptsModel, R, c, min_pts, max_pts);
     if ~isempty(distsS) && ~isempty(distsM)
-        valid_mask(i) = 1;
+        mask_crit1(i) = 1;
+        try            
+            [~, ~, varsS] = pca(local_ptsS, 'Algorithm', 'eig');        
+            [~, ~, varsM] = pca(local_ptsM, 'Algorithm', 'eig');
+            ratiosS = [varsS(1) / varsS(2), varsS(2) / varsS(3)];
+            ratiosM = [varsM(1) / varsM(2), varsM(2) / varsM(3)];
+
+            if all((ratiosS - thVar) > 0) && all((ratiosM - thVar) > 0)
+                mask_crit2(i) = 1;
+                local_ptsSCell{i} = local_ptsS;
+                local_ptsMCell{i} = local_ptsM;
+                ratiosSArray(i, :) = ratiosS;
+                ratiosMArray(i, :) = ratiosM;
+                locationArray(i, :) = c;
+            else
+                continue;
+            end
+        catch
+            continue
+        end      
     end
 end
-% retain only valid sample_pts
-valid_mask = cat(2, valid_mask, valid_mask, valid_mask);
-sample_pts = reshape(sample_pts(valid_mask), [], 3);
 
-valid_pts = [];
-valid_numpts = [];
-valid_vars = [];
+% apply mask
+valid_pts = sample_pts(mask_crit2, :);
+local_ptsSCell = local_ptsSCell(mask_crit2);
+local_ptsMCell = local_ptsMCell(mask_crit2);
+ratiosSArray = ratiosSArray(mask_crit2, :);
+ratiosMArray = ratiosMArray(mask_crit2, :);
+locationArray = locationArray(mask_crit2, :);
+
+valid_numpts = [cellfun(@(a) size(a, 1), local_ptsSCell), cellfun(@(a) size(a, 1), local_ptsMCell)];
+valid_vars = [ratiosSArray, ratiosMArray];
 desc_dists = [];
 desc_dists2 = [];
 desc_dists3 = [];
+desc_dists4 = [];
 alignment_meas = [];
 alignment_meas2 = [];
 alignment_meas3 = [];
+alignment_meas4 = [];
 centroid_dists2 = [];
 
-
-for i = 1:size(sample_pts ,1)
-    c = sample_pts(i, :);
-    % for Surface
-    [local_ptsS, ~] = getLocalPoints(pcSurface.Location, R, c, min_pts, max_pts);
-    % for Model
-    [local_ptsM, ~] = getLocalPoints(pcModel.Location, R, c, min_pts, max_pts);
-
-    % check for variance ratio constraint
-    [~, ~, varsS] = pca(local_ptsS, 'Algorithm', 'eig');        
-    [~, ~, varsM] = pca(local_ptsM, 'Algorithm', 'eig');
-    ratiosS = [varsS(1) / varsS(2), varsS(2) / varsS(3)];
-    ratiosM = [varsM(1) / varsM(2), varsM(2) / varsM(3)];
+%%
+for i = 1:size(valid_pts ,1)
     
-    % check if variance constraints are met
-    if all((ratiosS - thVar) > 0) && all((ratiosM - thVar) > 0)
-        valid_pts = [valid_pts; c];
-        valid_numpts = [valid_numpts; size(local_ptsS, 1), size(local_ptsM, 1)];
-        valid_vars = [valid_vars; ratiosS, ratiosM];
-
+    % unpack local points
+    local_ptsS = local_ptsSCell{i};
+    local_ptsM = local_ptsMCell{i};
+    
+    if ~TEST_KNN && ~ TEST_C
         % align using both methods and save descriptor distance
         [local_ptsS_aligned, tfS] = AlignPoints(local_ptsS);
         [local_ptsM_aligned, tfM] = AlignPoints(local_ptsM);
 
-        [local_ptsS_aligned2, tfS2, cS2] = AlignPoints_v2(local_ptsS);
-        [local_ptsM_aligned2, tfM2, cM2] = AlignPoints_v2(local_ptsM);
-        
+        [local_ptsS_aligned2, tfS2, cS2] = AlignPoints_c(local_ptsS);
+        [local_ptsM_aligned2, tfM2, cM2] = AlignPoints_c(local_ptsM);
+
+        % DEBUG!!! use captialized KNN not lower case knn!!
         [local_ptsS_aligned3, tfS3, cS3] = AlignPoints_KNN(local_ptsS);
-        [local_ptsM_aligned3, tfM3, cM3] = AlignPoints_KNN(local_ptsM);
+        [local_ptsM_aligned3, tfM3, cM3] = AlignPoints_KNN(local_ptsM);    
 
-        if ~isempty(local_ptsS_aligned2) && ~isempty(local_ptsM_aligned2)
+        [local_ptsS_aligned4, tfS4, cS4] = AlignPoints_KNN_c(local_ptsS);
+        [local_ptsM_aligned4, tfM4, cM4] = AlignPoints_KNN_c(local_ptsM);
+    elseif TEST_KNN
+        % align using both methods and save descriptor distance
+        [local_ptsS_aligned, tfS] = AlignPoints_KNN(local_ptsS);
+        [local_ptsM_aligned, tfM] = AlignPoints_KNN(local_ptsM);
 
-            % get descriptors for both alignments
-            dS = getDesc(local_ptsS_aligned, R);
-            dM = getDesc(local_ptsM_aligned, R);
+        k = 500;
+        [local_ptsS_aligned2, tfS2, cS2] = AlignPoints_knn(local_ptsS, k);
+        [local_ptsM_aligned2, tfM2, cM2] = AlignPoints_knn(local_ptsM, k);
+ 
+        k = 1500;
+        [local_ptsS_aligned3, tfS3, cS3] = AlignPoints_knn(local_ptsS, k);
+        [local_ptsM_aligned3, tfM3, cM3] = AlignPoints_knn(local_ptsM, k);
 
-            dS2 = getDesc(local_ptsS_aligned2, R);
-            dM2 = getDesc(local_ptsM_aligned2, R);
-            
-            dS3 = getDesc(local_ptsS_aligned3, R);
-            dM3 = getDesc(local_ptsM_aligned3, R);
+        [local_ptsS_aligned4, tfS4, cS4] = AlignPoints_weighted(local_ptsS);
+        [local_ptsM_aligned4, tfM4, cM4] = AlignPoints_weighted(local_ptsM);
+    elseif TEST_C
+        % align using both methods and save descriptor distance
+        [local_ptsS_aligned, tfS] = AlignPoints_KNN(local_ptsS, false, false);
+        [local_ptsM_aligned, tfM] = AlignPoints_KNN(local_ptsM, false, false);
+        
+        [local_ptsS_aligned2, tfS2] = AlignPoints_KNN(local_ptsS, true, false);
+        [local_ptsM_aligned2, tfM2] = AlignPoints_KNN(local_ptsM, true, false);
+        
+        [local_ptsS_aligned3, tfS3] = AlignPoints_KNN(local_ptsS, false, true);
+        [local_ptsM_aligned3, tfM3] = AlignPoints_KNN(local_ptsM, false, true);
+        
+        [local_ptsS_aligned4, tfS4] = AlignPoints_KNN(local_ptsS, true, true);
+        [local_ptsM_aligned4, tfM4] = AlignPoints_KNN(local_ptsM, true, true);
+    end
 
-            % get descriptor distance for both alignments
-            dist = getDescDist(dS, dM);
-            dist2 = getDescDist(dS2, dM2);
-            dist3 = getDescDist(dS3, dM3);
+    if ~isempty(local_ptsS_aligned2) && ~isempty(local_ptsM_aligned2)
 
-            % save in complete variables
-            desc_dists = [desc_dists, dist];
-            desc_dists2 = [desc_dists2, dist2];
-            desc_dists3 = [desc_dists3, dist3];
+        % get descriptors for both alignments
+        dS = getDesc(local_ptsS_aligned, R);
+        dM = getDesc(local_ptsM_aligned, R);
 
-            % get measurement for how good the alignment is
-            alignment_meas = [alignment_meas, checkAlignment(tfS, tfM)];
-            alignment_meas2 = [alignment_meas2, checkAlignment(tfS2, tfM2)];
-            alignment_meas3 = [alignment_meas3, checkAlignment(tfS3, tfM3)];
-            
-            % save centroid distance
-            centroid_dists2 = [centroid_dists2, norm(cS2-cM2)];
-        else
-            % alignment_v2 failed, but we still need to fill the
-            % vectors with dummies so that indexing doesn't break
-            % "nan" can be ignored with nanmedian and nanmean later!!
-            desc_dists = [desc_dists, nan];
-            desc_dists2 = [desc_dists2, nan];
-            desc_dists3 = [desc_dists3, nan];
-            alignment_meas = [alignment_meas, nan];
-            alignment_meas2 = [alignment_meas2, nan];
-            alignment_meas3 = [alignment_meas3, nan];
-            centroid_dists2 = [centroid_dists2, nan];
-        end
+        dS2 = getDesc(local_ptsS_aligned2, R);
+        dM2 = getDesc(local_ptsM_aligned2, R);
+
+        dS3 = getDesc(local_ptsS_aligned3, R);
+        dM3 = getDesc(local_ptsM_aligned3, R);
+        
+        dS4 = getDesc(local_ptsS_aligned4, R);
+        dM4 = getDesc(local_ptsM_aligned4, R);
+
+        % get descriptor distance for both alignments
+        dist = getDescDist(dS, dM);
+        dist2 = getDescDist(dS2, dM2);
+        dist3 = getDescDist(dS3, dM3);
+        dist4 = getDescDist(dS4, dM4);
+
+        % save in complete variables
+        desc_dists = [desc_dists, dist];
+        desc_dists2 = [desc_dists2, dist2];
+        desc_dists3 = [desc_dists3, dist3];
+        desc_dists4 = [desc_dists4, dist4];
+
+        % get measurement for how good the alignment is
+        alignment_meas = [alignment_meas, checkAlignment(tfS, tfM)];
+        alignment_meas2 = [alignment_meas2, checkAlignment(tfS2, tfM2)];
+        alignment_meas3 = [alignment_meas3, checkAlignment(tfS3, tfM3)];
+        alignment_meas4 = [alignment_meas4, checkAlignment(tfS4, tfM4)];
+
+        % save centroid distance for alignment 2
+        centroid_dists2 = [centroid_dists2, norm(cS2-cM2)];
+    else
+        % alignment_v2 failed, but we still need to fill the
+        % vectors with dummies so that indexing doesn't break
+        % "nan" can be ignored with nanmedian and nanmean later!!
+        desc_dists = [desc_dists, nan];
+        desc_dists2 = [desc_dists2, nan];
+        desc_dists3 = [desc_dists3, nan];
+        desc_dists4 = [desc_dists4, nan];
+        alignment_meas = [alignment_meas, nan];
+        alignment_meas2 = [alignment_meas2, nan];
+        alignment_meas3 = [alignment_meas3, nan];
+        alignment_meas4 = [alignment_meas4, nan];
+        
+        centroid_dists2 = [centroid_dists2, nan];
     end
 end
 toc
@@ -138,44 +207,59 @@ fprintf('Sampled %d points, %d are valid (%0.2f %%)\n', ...
 median_dist = nanmedian(desc_dists);
 median_dist2 = nanmedian(desc_dists2);
 median_dist3 = nanmedian(desc_dists3);
+median_dist4 = nanmedian(desc_dists4);
 mean_dist = nanmean(desc_dists);
 mean_dist2 = nanmean(desc_dists2);
 mean_dist3 = nanmean(desc_dists3);
+mean_dist4 = nanmean(desc_dists4);
 fprintf('Median (Mean) Distance with old alignment: %0.2f (%0.2f)\n', median_dist, mean_dist);
 fprintf('Median (Mean) Distance with local alignment: %0.2f (%0.2f)\n', median_dist2, mean_dist2);
 fprintf('Median (Mean) Distance with knn alignment: %0.2f (%0.2f)\n', median_dist3, mean_dist3);
+fprintf('Median (Mean) Distance with knn and local alignment: %0.2f (%0.2f)\n', median_dist4, mean_dist4);
 
 %% and more cool statistics: num successes 
 successThresh = 0.5;
 num_success = sum(alignment_meas < successThresh);
 num_success2 = sum(alignment_meas2 < successThresh);
 num_success3 = sum(alignment_meas3 < successThresh);
+num_success4 = sum(alignment_meas4 < successThresh);
 perc_success = 100*num_success/num_valid;
 perc_success2 = 100*num_success2/num_valid;
 perc_success3 = 100*num_success3/num_valid;
+perc_success4 = 100*num_success4/num_valid;
 fprintf('Old: %d (%0.1f %%) successes, Local: %d (%0.1f %%) successes, KNN: %d (%0.1f %%) successes\n', ...
             num_success, perc_success, num_success2, perc_success2, num_success3, perc_success3);
         
 PLOT = true;
 if PLOT
-    thresh = 0:0.01:1;
+    thresh = 0:0.001:0.5;
     perc_succ = zeros(length(thresh), 1);
     perc_succ2 = zeros(length(thresh), 1);
     perc_succ3 = zeros(length(thresh), 1);
+    perc_succ4 = zeros(length(thresh), 1);
     for i = 1:length(thresh)
         th = thresh(i);
         num_success = sum(alignment_meas < th);
         num_success2 = sum(alignment_meas2 < th);
         num_success3 = sum(alignment_meas3 < th);
+        num_success4 = sum(alignment_meas4 < th);
         perc_succ(i) = 100*num_success/num_valid;
         perc_succ2(i) = 100*num_success2/num_valid;
         perc_succ3(i) = 100*num_success3/num_valid;
+        perc_succ4(i) = 100*num_success4/num_valid;
     end
     plot(thresh, perc_succ);
     hold all
-    plot(thresh, perc_succ2);
     plot(thresh, perc_succ3);
-    legend('Global PCA', 'Local PCA', 'KNN PCA');
+    plot(thresh, perc_succ2);
+    plot(thresh, perc_succ4);
+    if ~TEST_KNN && ~TEST_C
+        legend('Global PCA', 'KNN PCA, 0.85%', 'Local PCA, r = 2.5', 'KNN & Local PCA', 'Location', 'NorthWest');
+    elseif TEST_KNN
+        legend('KNN PCA, 0.85%', 'k = 500', 'k = 1500', 'weighted points', 'Location', 'NorthWest');
+    elseif TEST_C
+        legend('KNN PCA, 0.85%', 'PCA center, SGN centroid', 'SGN center, PCA centroid', 'PCA & SGN from center', 'Location', 'NorthWest');
+    end
     xlabel('threshold');
     ylabel('sucess rate');
     grid;
@@ -220,8 +304,17 @@ for i = 1:num_display
     [ptsMatchSurface_aligned, ~] = AlignPoints(ptsMatchSurface);
     [ptsMatchModel_aligned, ~] = AlignPoints(ptsMatchModel);
 
-    [ptsMatchSurface_aligned2, ~, cS] = AlignPoints_v2(ptsMatchSurface);
-    [ptsMatchModel_aligned2, ~, cM] = AlignPoints_v2(ptsMatchModel);
+    % perform the method specified for visual comparison
+    if strcmp(METHOD, 'C')
+        [ptsMatchSurface_aligned_disp, ~, cS] = AlignPoints_c(ptsMatchSurface);
+        [ptsMatchModel_aligned_disp, ~, cM] = AlignPoints_c(ptsMatchModel);
+    elseif strcmp(METHOD, 'KNN')
+        [ptsMatchSurface_aligned_disp, ~, cS] = AlignPoints_KNN(ptsMatchSurface);
+        [ptsMatchModel_aligned_disp, ~, cM] = AlignPoints_KNN(ptsMatchModel);
+    elseif strcmp(METHOD, 'KNN_C')
+        [ptsMatchSurface_aligned_disp, ~, cS] = AlignPoints_KNN_c(ptsMatchSurface);
+        [ptsMatchModel_aligned_disp, ~, cM] = AlignPoints_KNN_c(ptsMatchModel);
+    end
 
     
     % add frame points for display
@@ -229,8 +322,8 @@ for i = 1:num_display
     ptsMatchModel = [ptsMatchModel; add_pts];
     ptsMatchSurface_aligned = [ptsMatchSurface_aligned; add_pts];
     ptsMatchModel_aligned = [ptsMatchModel_aligned; add_pts];
-    ptsMatchSurface_aligned2 = [ptsMatchSurface_aligned2; add_pts];
-    ptsMatchModel_aligned2 = [ptsMatchModel_aligned2; add_pts];
+    ptsMatchSurface_aligned_disp = [ptsMatchSurface_aligned_disp; add_pts];
+    ptsMatchModel_aligned_disp = [ptsMatchModel_aligned_disp; add_pts];
     
     % make plots
     row = mod(i-1, 4)+1;
@@ -255,12 +348,12 @@ for i = 1:num_display
     pcshow(ptsMatchModel_aligned, 'MarkerSize', 50);
     if row == 1; title('Model aligned'); end
     subplot(4, 6, 6*row-1);
-    pcshow(ptsMatchSurface_aligned2, 'MarkerSize', 50);
+    pcshow(ptsMatchSurface_aligned_disp, 'MarkerSize', 50);
     xlabel(sprintf('align: %0.2f', alignment_meas2(idx)));
-    if row == 1; title('Surface aligned v2'); end
+    if row == 1; title(strcat('Surface aligned ', METHOD)); end
     subplot(4, 6, 6*row);
-    pcshow(ptsMatchModel_aligned2, 'MarkerSize', 50);
-    if row == 1; title('Model aligned v2'); end
+    pcshow(ptsMatchModel_aligned_disp, 'MarkerSize', 50);
+    if row == 1; title(strcat('Model aligned ', METHOD)); end
 
 end
 
@@ -323,6 +416,7 @@ end
 % random alignment results in 1.5 < dist < 3 
 function dist = checkAlignment(R1, R2)
     dist = norm(R1*R2'-eye(3), 'fro');
+    
     %dist = norm(R1*R2'-eye(3), 2);
 end
 

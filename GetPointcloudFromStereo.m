@@ -262,9 +262,16 @@ elseif strcmp(METHOD, 'DENSE')
     complete_map(~complete_map) = nan;
     disp = complete_map.*disp_filt;
                     
-    % display disparity map
+    % display disparity map before enhancement
     figure();
     imshow(disp_filt,disparityRange);
+    title('Disparity Map from crop');
+    colormap(gca,jet) 
+    colorbar
+    
+    % display disparity map after enhancement
+    figure();
+    imshow(disp,disparityRange);
     title('Disparity Map from crop');
     colormap(gca,jet) 
     colorbar

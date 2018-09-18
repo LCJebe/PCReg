@@ -1,45 +1,34 @@
-function [pts_aligned, coeff_unambig, c] = AlignPoints_KNN(pts, varargin)
+function [pts_aligned, coeff_unambig, c] = AlignPoints_weighted(pts)
 %% AlignPoints_KNN.m
 % PCA for alignment on the k (in %) nearest neighbors of the centroid
 % returns the pca-aligned points (pts_aligned),
 % the rotation matrix that was used (coeff_unambig)
 % and the centroid 
 
-    if length(varargin) == 2
-        C1 = varargin{1};
-        C2 = varargin{2};
-    else
-        C1 = false;
-        C2 = false;
-    end
-
     % --- 1) find median (L1) / mean (L2)
     c = mean(pts, 1);
     
-    % --- 2) get the k nearest neighbors from the centroid
-    k = 0.85; % fraction of points considered. (rest assumed outlier)
-    K = round(size(pts,1) * k);
-    pts_rel = pts - c;
-    dists = vecnorm(pts_rel, 2, 2);
-    [~, I] = sort(dists);
-    pts_sorted = pts_rel(I, :);
-    pts_k = pts_sorted(1:K, :);
+    % --- 2) calculate weighted covariance matrix
+    pts_rel = pts-c;
+    dist_from_c = vecnorm(pts_rel, 2, 2);
     
+    % get weight vector for points   
+    R = 3.5;
+    reverse_dist_from_c = R - dist_from_c;
+    reverse_dist_from_c(reverse_dist_from_c < 0) = 0;
+    %weighted_dist_from_c =  reverse_dist_from_c/ sum(reverse_dist_from_c);
     
-    % --- 3) use those points for alignment (get transform)
-    if C1 % C1 = true: Not with respecft to centroid!
-        [coeff, pts_lrf, ~] = pca(pts_k, 'Algorithm', 'eig', 'Centered', 'off'); 
-    else
-        [coeff, pts_lrf, ~] = pca(pts_k, 'Algorithm', 'eig'); 
-    end
-
+    M = (reverse_dist_from_c .* pts_rel)' * pts_rel;
+    
+    % --- 3) get eigenvectors
+    [coeff,~] = eig(M);   
+    
     % ---- use sign disambiguition method for aligned points
+    % centered points in local reference frame
+    pts_lrf = pts_rel*coeff;
+    
     k = size(pts, 1);
     
-    if C2 % C2 = true: not with respect to centroid
-        pts_lrf = pts*coeff;
-    end
-
     % count number of points with positive sign and see if they
     % dominate 
     x_sign = sum(sign(pts_lrf(:, 1)) == 1) >= k/2;

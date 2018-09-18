@@ -1,4 +1,7 @@
 function [pts_aligned, coeff_unambig] = AlignPoints(pts)
+%% AlignPoints.m
+% simple (global) PCA with sign disambiguation
+% returns the aligned points and the used coefficients
 
     [coeff, pts_lrf, ~] = pca(pts, 'Algorithm', 'eig'); 
 
