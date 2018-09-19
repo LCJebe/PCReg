@@ -1,7 +1,6 @@
-%% slideMatchingWindow.m
-% experiment, where we slowly slide the crop from the ideal position
-% outwards with a ramdom angle, and record how well RANSAC performs with
-% different metrics (inlier percentage, num successes, num inliers)
+%% completeExperiment.m
+% running complete Experiment
+
 rng('shuffle');
 
 %% options
@@ -254,7 +253,7 @@ num_trials = size(idx2, 1);
 
 
 % little print for timing
-fprintf('Performing RANSAC on all promising spheres...\n');
+fprintf('Performing RANSAC on all %d promising spheres...\n', num_trials);
 fprintf('This will take about %0.1f x t minutes...\n', double(num_trials)/4/60);
 
 % statistics: numPutative, numSuccess, maxInliers, maxInlierRatio

@@ -9,7 +9,7 @@ path = 'Data/PointClouds/';
 pcModel = pcread(strcat(path, 'ModelSmoothUp3.pcd'));
 
 % sample options
-sampleOptM.d = 0.3;
+sampleOptM.d = 0.4;
 sampleOptM.margin = 3.5; % should equal R
 
 % descriptor options
@@ -27,5 +27,5 @@ descOptM.max_region_size = 15;
         speedyDescriptors(pcModel.Location, sampleOptM, descOptM);   
 
 % save the features and descriptors to workspace
-save('Data/Descriptors/featModel0.3_noLRF.mat', 'featModel');
-save('Data/Descriptors/descModel0.3_noLRF.mat', 'descModel');
+save('Data/Descriptors/featModel0.4_noLRF.mat', 'featModel');
+save('Data/Descriptors/descModel0.4_noLRF.mat', 'descModel');

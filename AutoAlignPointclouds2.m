@@ -8,7 +8,7 @@
 % raw = 'SurfaceNew_DS3.pcd'
 % rand = 'SurfaceNew_DS3.pcd'
 % rand2 = 'SurfaceNew_DS3_rand2.pcd'
-pcSurface = pcread('Data/PointClouds/SurfaceNew_DS3_rand2.pcd');
+pcSurface = pcread('Data/PointClouds/SurfaceNew_DS3.pcd');
 pcSurface = centerPointCloud(pcSurface);
 
 
