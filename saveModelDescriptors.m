@@ -6,14 +6,14 @@ rng('shuffle');
 
 % read model pointcluod
 path = 'Data/PointClouds/';
-pcModel = pcread(strcat(path, 'ModelSmoothUp3.pcd'));
+pcModel = pcread(strcat(path, 'Render.pcd'));
 
 % sample options
-sampleOptM.d = 0.4;
+sampleOptM.d = 0.3;
 sampleOptM.margin = 3.5; % should equal R
 
 % descriptor options
-descOptM.ALIGN_POINTS = false;
+descOptM.ALIGN_POINTS = true;
 descOptM.min_pts = 500;
 descOptM.max_pts = 6000;
 descOptM.R = 3.5; % should equal margin
@@ -27,5 +27,5 @@ descOptM.max_region_size = 15;
         speedyDescriptors(pcModel.Location, sampleOptM, descOptM);   
 
 % save the features and descriptors to workspace
-save('Data/Descriptors/featModel0.4_noLRF.mat', 'featModel');
-save('Data/Descriptors/descModel0.4_noLRF.mat', 'descModel');
+save('Data/Descriptors/featModel0.3_render.mat', 'featModel');
+save('Data/Descriptors/descModel0.3_render.mat', 'descModel');
